@@ -7,6 +7,7 @@ struct BlurView: View {
     @State private var timer: Timer.TimerPublisher = Timer.publish(every: 1, on: .main, in: .common)
     @State private var timerSubscription: AnyCancellable?
     @State private var opacity: Double = 0
+    @State private var contentOpacity: Double = 0
     
     init(technique: String) {
         self.technique = technique
@@ -70,13 +71,20 @@ struct BlurView: View {
                 }
                 
                 Button("Skip") {
-                    timerSubscription?.cancel()
                     withAnimation(.easeOut(duration: 0.3)) {
-                        opacity = 0
+                        contentOpacity = 0
                     }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.dismissBlurScreen()
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        withAnimation(.easeOut(duration: 0.5)) {
+                            opacity = 0
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            timerSubscription?.cancel()
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                appDelegate.dismissBlurScreen()
+                            }
                         }
                     }
                 }
@@ -84,11 +92,18 @@ struct BlurView: View {
                 .font(.system(size: 16, weight: .medium, design: .rounded))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(contentOpacity)
         }
         .opacity(opacity)
         .onAppear {
-            withAnimation(.easeIn(duration: 0.3)) {
+            withAnimation(.easeIn(duration: 0.5)) {
                 opacity = 1
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.easeIn(duration: 0.5)) {
+                    contentOpacity = 1
+                }
             }
             
             timerSubscription = timer.autoconnect().sink { _ in

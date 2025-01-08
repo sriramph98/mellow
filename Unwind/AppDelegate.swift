@@ -38,6 +38,10 @@ class KeyableWindow: NSWindow {
     }
 }
 
+class TimerState: ObservableObject {
+    @Published var timeString: String = ""
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem?
     var blurWindow: NSWindow?
@@ -62,6 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var breakSound: NSSound?
     private var lastUsedInterval: TimeInterval?
     private var lastUsedBreakDuration: TimeInterval?
+    private let timerState = TimerState()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMainMenu()
@@ -114,9 +119,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     private func createAndShowHomeWindow() {
-        let homeView = HomeView(timeInterval: timeInterval) { [weak self] newValue in
-            self?.timeInterval = newValue
-        }
+        let homeView = HomeView(
+            timeInterval: timeInterval,
+            timerState: timerState,
+            onTimeIntervalChange: { [weak self] newValue in
+                self?.timeInterval = newValue
+            }
+        )
         
         homeWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -169,9 +178,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func updateMenuBarTitle() {
         if let button = statusItem?.button {
             if timer != nil, let nextBreak = nextBreakTime {
-                let minutes = max(0, Int(nextBreak.timeIntervalSinceNow / 60))
-                button.title = " \(minutes)m"
+                let timeRemaining = nextBreak.timeIntervalSinceNow
+                if timeRemaining > 0 {
+                    let minutes = Int(timeRemaining) / 60
+                    let seconds = Int(timeRemaining) % 60
+                    timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                    button.title = " \(minutes)m"
+                } else {
+                    timerState.timeString = "0:00"
+                    button.title = " 0m"
+                }
             } else {
+                timerState.timeString = ""
                 button.title = " Ready"
             }
         }
@@ -198,17 +216,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         nextBreakTime = Date().addingTimeInterval(timeInterval)
         
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.updateMenuBarTitle()
+        timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             
-            if let nextBreak = self?.nextBreakTime,
-               Date() >= nextBreak {
-                self?.showBlurScreen(forTechnique: self?.currentTechnique)
-                self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
+            if let nextBreak = self.nextBreakTime {
+                let timeRemaining = nextBreak.timeIntervalSinceNow
+                
+                if timeRemaining > 0 {
+                    let minutes = Int(timeRemaining) / 60
+                    let seconds = Int(timeRemaining) % 60
+                    self.updateTimeString(String(format: "%d:%02d", minutes, seconds))
+                    
+                    if let button = self.statusItem?.button {
+                        button.title = " \(minutes)m"
+                    }
+                } else {
+                    self.updateTimeString("0:00")
+                    if let button = self.statusItem?.button {
+                        button.title = " 0m"
+                    }
+                    
+                    self.showBlurScreen(forTechnique: self.currentTechnique)
+                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                }
             }
         }
         
-        updateMenuBarTitle()
+        // Set initial value
+        let initialMinutes = Int(timeInterval) / 60
+        let initialSeconds = Int(timeInterval) % 60
+        updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
+        
+        RunLoop.main.add(timer!, forMode: .common)
     }
     
     @objc private func showHomeScreen() {
@@ -223,14 +262,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             homeWindow?.title = "Unwind"
             homeWindow?.center()
             
-            let homeView = HomeView(timeInterval: timeInterval) { [weak self] newValue in
-                self?.timeInterval = newValue
-                do {
-                    try self?.startTimer()
-                } catch {
-                    self?.handleError(error)
+            let homeView = HomeView(
+                timeInterval: timeInterval,
+                timerState: timerState,
+                onTimeIntervalChange: { [weak self] newValue in
+                    self?.timeInterval = newValue
                 }
-            }
+            )
             
             homeWindow?.contentView = NSHostingView(rootView: homeView)
             homeWindow?.isReleasedWhenClosed = false
@@ -444,10 +482,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             switch technique {
             case "20-20-20":
-                timeInterval = 1200
+                timeInterval = 1200  // 20 minutes
                 shortBreakDuration = 20
             case "Pomodoro":
-                timeInterval = 1500
+                timeInterval = 1500  // 25 minutes
                 shortBreakDuration = 300
             case "Custom":
                 let reminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
@@ -468,6 +506,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     throw UnwindError.invalidTechnique
                 }
             }
+            
+            // Set initial countdown value
+            nextBreakTime = Date().addingTimeInterval(timeInterval)
+            let initialMinutes = Int(timeInterval) / 60
+            let initialSeconds = Int(timeInterval) % 60
+            timerState.timeString = String(format: "%d:%02d", initialMinutes, initialSeconds)
             
             try startTimer()
             
@@ -506,6 +550,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow = nil
         } else if window == customRuleWindow {
             customRuleWindow = nil
+        }
+    }
+    
+    private func updateTimeString(_ newValue: String) {
+        DispatchQueue.main.async {
+            self.timerState.timeString = newValue
         }
     }
 }
