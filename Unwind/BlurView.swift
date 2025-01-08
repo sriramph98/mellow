@@ -10,8 +10,21 @@ struct BlurView: View {
     
     init(technique: String) {
         self.technique = technique
+        
         // Set initial time based on technique
-        _timeRemaining = State(initialValue: technique == "20-20-20" ? 20 : 300)
+        let initialTime: Int
+        switch technique {
+        case "20-20-20":
+            initialTime = 20
+        case "Pomodoro":
+            initialTime = 300
+        case "Custom":
+            initialTime = UserDefaults.standard.integer(forKey: "breakDuration")
+        default:
+            initialTime = 60
+        }
+        
+        _timeRemaining = State(initialValue: initialTime)
     }
     
     var instructionText: String {
@@ -20,6 +33,8 @@ struct BlurView: View {
             return "Look at something 20 feet away"
         case "Pomodoro":
             return "Take a refreshing break"
+        case "Custom":
+            return "Time for your custom break"
         default:
             return "Take a break"
         }

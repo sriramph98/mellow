@@ -33,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var customBreakDuration: TimeInterval {
         TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
     }
+    private var breakSound: NSSound?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set default interval if not set
@@ -61,7 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         homeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 520),
             styleMask: [.titled, .fullSizeContentView, .closable],
             backing: .buffered,
             defer: false
@@ -115,12 +116,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func takeBreakNow() {
-        showBlurScreen()
+        showBlurScreen(forTechnique: currentTechnique)
     }
     
     private func startTimer() {
         timer?.invalidate()
-        // Set the next break time to timeInterval from now (not immediate)
         nextBreakTime = Date().addingTimeInterval(timeInterval)
         
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -128,13 +128,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             if let nextBreak = self?.nextBreakTime,
                Date() >= nextBreak {
-                self?.showBlurScreen()
-                // Set next break time after current break
+                self?.showBlurScreen(forTechnique: self?.currentTechnique)
                 self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
             }
         }
         
-        // Update menu bar immediately to show initial countdown
         updateMenuBarTitle()
     }
     
@@ -162,7 +160,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         homeWindow?.makeKeyAndOrderFront(nil)
     }
     
-    func showBlurScreen() {
+    func showBlurScreen(forTechnique technique: String? = nil) {
         if blurWindow != nil {
             return
         }
@@ -182,13 +180,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         blurWindow?.acceptsMouseMovedEvents = true
         blurWindow?.ignoresMouseEvents = false
         
-        let blurView = BlurView(technique: currentTechnique ?? "Custom")
+        // Use the passed technique for preview
+        let previewTechnique = technique ?? currentTechnique ?? "Custom"
+        
+        // Set up break durations before creating BlurView
+        if previewTechnique == "Custom" {
+            // Ensure we have valid custom durations
+            if UserDefaults.standard.integer(forKey: "breakDuration") == 0 {
+                UserDefaults.standard.set(60, forKey: "breakDuration") // Default 1 minute
+            }
+            if UserDefaults.standard.integer(forKey: "reminderInterval") == 0 {
+                UserDefaults.standard.set(1200, forKey: "reminderInterval") // Default 20 minutes
+            }
+        }
+        
+        let blurView = BlurView(technique: previewTechnique)
         blurWindow?.contentView = NSHostingView(rootView: blurView)
         blurWindow?.makeKeyAndOrderFront(nil)
         
         // Play sound if enabled
         if UserDefaults.standard.bool(forKey: "playSound") {
-            NSSound(named: "Glass")?.play()
+            if breakSound == nil {
+                breakSound = NSSound(named: "Glass")
+            }
+            breakSound?.play()
         }
         
         // Show notification if enabled
@@ -204,24 +219,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             UNUserNotificationCenter.current().add(request)
         }
         
-        // Update auto-dismiss duration based on technique
-        let dismissDuration = switch currentTechnique {
+        // Set dismiss duration based on technique
+        let dismissDuration = switch previewTechnique {
         case "20-20-20": shortBreakDuration
         case "Pomodoro": longBreakDuration
-        case "Custom": customBreakDuration
+        case "Custom": TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
         default: longBreakDuration
         }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + dismissDuration) { [weak self] in
             self?.dismissBlurScreen()
-            
-            // For Pomodoro, track sessions
-            if self?.currentTechnique == "Pomodoro" {
-                self?.pomodoroCount += 1
-                if self?.pomodoroCount == 4 {
-                    self?.pomodoroCount = 0
-                    self?.timeInterval = 1800 // 30-minute long break
-                }
-            }
         }
     }
     
@@ -230,57 +237,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Only close and nil the blur window
             self?.blurWindow?.orderOut(nil)  // Changed from close() to orderOut(nil)
             self?.blurWindow = nil
+            self?.breakSound?.stop()
         }
     }
     
     @objc func showSettings() {
-        if settingsWindow == nil {
-            settingsWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 300, height: 150), // Smaller height
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
+        DispatchQueue.main.async { [weak self] in
+            if self?.settingsWindow == nil {
+                self?.settingsWindow = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
+                    styleMask: [.titled, .closable],
+                    backing: .buffered,
+                    defer: false
+                )
+                
+                self?.settingsWindow?.title = "App Settings"
+                self?.settingsWindow?.center()
+                self?.settingsWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
+                self?.settingsWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
+                
+                let settingsView = AdvancedSettingsView()
+                self?.settingsWindow?.contentView = NSHostingView(rootView: settingsView)
+                self?.settingsWindow?.isReleasedWhenClosed = true
+            }
             
-            settingsWindow?.title = "App Settings"
-            settingsWindow?.center()
-            settingsWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-            settingsWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
-            
-            let settingsView = AdvancedSettingsView()
-            settingsWindow?.contentView = NSHostingView(rootView: settingsView)
-            settingsWindow?.isReleasedWhenClosed = true
+            NSApp.activate(ignoringOtherApps: true)
+            self?.settingsWindow?.makeKeyAndOrderFront(nil)
         }
-        
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
     }
     
     func showCustomRuleSettings() {
-        if customRuleWindow == nil {
-            customRuleWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
-            
-            customRuleWindow?.title = "Custom Rule"
-            customRuleWindow?.center()
-            customRuleWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-            customRuleWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
-            
-            let customRuleView = CustomRuleView { [weak self] newValue in
-                self?.timeInterval = newValue
-                self?.startTimer()
+        DispatchQueue.main.async { [weak self] in
+            if self?.customRuleWindow == nil {
+                self?.customRuleWindow = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                    styleMask: [.titled, .closable],
+                    backing: .buffered,
+                    defer: false
+                )
+                
+                self?.customRuleWindow?.title = "Custom Rule"
+                self?.customRuleWindow?.center()
+                self?.customRuleWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
+                self?.customRuleWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
+                
+                let customRuleView = CustomRuleView { [weak self] newValue in
+                    self?.timeInterval = newValue
+                    self?.startTimer()
+                }
+                
+                self?.customRuleWindow?.contentView = NSHostingView(rootView: customRuleView)
+                self?.customRuleWindow?.isReleasedWhenClosed = true
             }
             
-            customRuleWindow?.contentView = NSHostingView(rootView: customRuleView)
-            customRuleWindow?.isReleasedWhenClosed = true
+            NSApp.activate(ignoringOtherApps: true)
+            self?.customRuleWindow?.makeKeyAndOrderFront(nil)
         }
-        
-        NSApp.activate(ignoringOtherApps: true)
-        customRuleWindow?.makeKeyAndOrderFront(nil)
     }
     
     func startSelectedTechnique(technique: String) {
@@ -295,8 +307,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             timeInterval = 1500 // 25 minutes
             shortBreakDuration = 300 // 5 minutes
         case "Custom":
-            timeInterval = TimeInterval(UserDefaults.standard.integer(forKey: "reminderInterval"))
-            shortBreakDuration = customBreakDuration
+            let reminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
+            let breakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
+            
+            // Use defaults if values are not set
+            timeInterval = reminderInterval > 0 ? TimeInterval(reminderInterval) : 1200
+            shortBreakDuration = breakDuration > 0 ? TimeInterval(breakDuration) : 60
         default:
             break
         }
@@ -308,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         timer?.invalidate()
         timer = nil
         currentTechnique = nil
+        breakSound?.stop()
         updateMenuBarTitle()
     }
     
