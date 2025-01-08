@@ -52,13 +52,11 @@ struct PresetCard: View {
                 Button("Modify") {
                     onModify?()
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .padding(.bottom, 8)
+                .buttonStyle(PillButtonStyle())
+                .font(.system(size: 14, weight: .medium, design: .rounded))
             }
         }
-        .frame(width: 180, height: 240)
+        .frame(width: 200, height: 260)
         .padding()
         .background {
             RoundedRectangle(cornerRadius: 16)
@@ -73,6 +71,27 @@ struct PresetCard: View {
     }
 }
 
+struct PillButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            configuration.label
+        }
+        .padding(.horizontal, 0)
+        .padding(.vertical, 8)
+        .frame(width: 135, alignment: .center)
+        .background(isHovering ? .black.opacity(0.8) : .white.opacity(0.14))
+        .animation(.smooth(duration: 0.2), value: isHovering)
+        .cornerRadius(999)
+        .onHover { hovering in
+            withAnimation {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
 struct HomeView: View {
     let timeInterval: TimeInterval
     let onTimeIntervalChange: (TimeInterval) -> Void
@@ -80,13 +99,19 @@ struct HomeView: View {
     @State private var isRunning = false
     
     var body: some View {
-        VStack(spacing: 30) {
-            Text("Unwind")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .padding(.top, 20)
+        VStack(spacing: 40) {
+            VStack(spacing: 8) {
+                Text("Unwind")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Text("Because breaks power brilliance")
+                    .font(.system(size: 16, design: .rounded))
+                    .foregroundColor(.gray)
+            }
+            .padding(.top, 40)
             
-            HStack(spacing: 24) {
+            HStack(spacing: 32) {
                 PresetCard(
                     title: "20-20-20",
                     isSelected: selectedPreset == "20-20-20",
@@ -122,10 +147,10 @@ struct HomeView: View {
                     }
                 )
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 50)
             
             HStack(spacing: 20) {
-                Button(isRunning ? "Stop" : "Start") {
+                Button {
                     isRunning.toggle()
                     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                         if isRunning {
@@ -134,30 +159,35 @@ struct HomeView: View {
                             appDelegate.stopTimer()
                         }
                     }
+                } label: {
+                    Text(isRunning ? "Stop" : "Start")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .buttonStyle(PillButtonStyle())
                 
-                Button("Preview") {
+                Button {
                     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                         appDelegate.showBlurScreen(forTechnique: selectedPreset)
                     }
+                } label: {
+                    Text("Preview")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .buttonStyle(PillButtonStyle())
             }
+            .padding(.top, 20)
             
             Spacer()
             
             Text("Close this window to minimize to menu bar")
                 .font(.caption)
                 .foregroundColor(.gray)
-                .padding(.bottom, 16)
+                .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, 30)
         .background(Color(NSColor.windowBackgroundColor))
         .edgesIgnoringSafeArea(.all)
     }

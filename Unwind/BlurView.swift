@@ -80,7 +80,7 @@ struct BlurView: View {
                         }
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PillButtonStyle())
                 .font(.system(size: 16, weight: .medium, design: .rounded))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
