@@ -8,6 +8,8 @@ struct PresetCard: View {
     let isCustom: Bool
     let onModify: (() -> Void)?
     let isDisabled: Bool
+    let namespace: Namespace.ID
+    @State private var isHovering = false
     
     init(
         title: String,
@@ -16,7 +18,8 @@ struct PresetCard: View {
         action: @escaping () -> Void,
         isCustom: Bool = false,
         onModify: (() -> Void)? = nil,
-        isDisabled: Bool = false
+        isDisabled: Bool = false,
+        namespace: Namespace.ID
     ) {
         self.title = title
         self.isSelected = isSelected
@@ -25,15 +28,35 @@ struct PresetCard: View {
         self.isCustom = isCustom
         self.onModify = onModify
         self.isDisabled = isDisabled
+        self.namespace = namespace
+    }
+    
+    private var iconName: (normal: String, selected: String) {
+        switch title {
+        case "20-20-20":
+            return ("20-normal", "20-selected")  // Your custom PNG names
+        case "Pomodoro":
+            return ("pomodoro-normal", "pomodoro-selected")
+        case "Custom":
+            return ("custom-normal", "custom-selected")
+        default:
+            return ("default-normal", "default-selected")
+        }
     }
     
     var body: some View {
         Button(action: action) {
             VStack(spacing: 16) {
                 VStack(spacing: 16) {
-                    Circle()
-                        .fill(.white.opacity(0.1))
-                        .frame(width: 100, height: 100)
+                    Image(isSelected ? iconName.selected : iconName.normal)
+                        .resizable()
+                        .interpolation(.medium)
+                        .antialiased(true)
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
+                        .opacity(isSelected ? 1 : 0.7)
+                        .scaleEffect(isSelected ? 1.1 : 1.0)
+                        .animation(.smooth(duration: 0.2), value: isSelected)
                     
                     Text(title)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
@@ -61,18 +84,47 @@ struct PresetCard: View {
             .padding()
             .background {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(.gray.opacity(0.2))
+                    .fill(backgroundGradient)
                     .overlay {
                         if isSelected {
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(.blue, lineWidth: 2)
+                                .stroke(Color(nsColor: NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1)), lineWidth: 2)
+                                .matchedGeometryEffect(id: "selectedCard", in: namespace)
                         }
                     }
             }
             .opacity(isDisabled ? 0.4 : 1.0)
+            .scaleEffect(isSelected || isHovering ? 1.02 : 1.0)
+            .animation(.smooth(duration: 0.3), value: isSelected)
+            .animation(.smooth(duration: 0.2), value: isHovering)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
+        .onHover { hovering in
+            guard !isDisabled else { return }
+            isHovering = hovering
+        }
+    }
+    
+    private var backgroundGradient: some ShapeStyle {
+        if isSelected {
+            return AnyShapeStyle(
+                Color(nsColor: NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 0.4))  // #007AFF with 40% opacity
+            )
+        } else if isHovering {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        .white.opacity(0.15),
+                        .white.opacity(0.1)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        } else {
+            return AnyShapeStyle(.gray.opacity(0.2))
+        }
     }
 }
 
@@ -103,6 +155,7 @@ struct HomeView: View {
     @StateObject private var timerState: TimerState
     @State private var selectedPreset: String = "20-20-20"
     @State private var isRunning = false
+    @Namespace private var animation
     
     init(
         timeInterval: TimeInterval,
@@ -115,7 +168,7 @@ struct HomeView: View {
     }
     
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: 32) {
             VStack(spacing: 8) {
                 Text("Unwind")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
@@ -125,18 +178,21 @@ struct HomeView: View {
                     .font(.system(size: 16, design: .rounded))
                     .foregroundColor(.gray)
             }
-            .padding(.top, 40)
+            .padding(.top, 24)
             
-            HStack(spacing: 32) {
+            HStack(spacing: 24) {
                 PresetCard(
                     title: "20-20-20",
                     isSelected: selectedPreset == "20-20-20",
                     description: "Every 20 minutes, look at something 20 feet away for 20 seconds",
                     action: {
-                        selectedPreset = "20-20-20"
-                        onTimeIntervalChange(1200)
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedPreset = "20-20-20"
+                            onTimeIntervalChange(1200)
+                        }
                     },
-                    isDisabled: isRunning && selectedPreset != "20-20-20"
+                    isDisabled: isRunning && selectedPreset != "20-20-20",
+                    namespace: animation
                 )
                 
                 PresetCard(
@@ -144,10 +200,13 @@ struct HomeView: View {
                     isSelected: selectedPreset == "Pomodoro",
                     description: "Work for 25 minutes, then take a 5-minute break",
                     action: {
-                        selectedPreset = "Pomodoro"
-                        onTimeIntervalChange(1500)
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedPreset = "Pomodoro"
+                            onTimeIntervalChange(1500)
+                        }
                     },
-                    isDisabled: isRunning && selectedPreset != "Pomodoro"
+                    isDisabled: isRunning && selectedPreset != "Pomodoro",
+                    namespace: animation
                 )
                 
                 PresetCard(
@@ -155,7 +214,9 @@ struct HomeView: View {
                     isSelected: selectedPreset == "Custom",
                     description: "Set your own break interval",
                     action: {
-                        selectedPreset = "Custom"
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedPreset = "Custom"
+                        }
                     },
                     isCustom: true,
                     onModify: {
@@ -163,12 +224,13 @@ struct HomeView: View {
                             appDelegate.showCustomRuleSettings()
                         }
                     },
-                    isDisabled: isRunning && selectedPreset != "Custom"
+                    isDisabled: isRunning && selectedPreset != "Custom",
+                    namespace: animation
                 )
             }
-            .padding(.horizontal, 50)
+            .padding(.horizontal, 32)
             
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 Button {
                     isRunning.toggle()
                     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
@@ -195,6 +257,27 @@ struct HomeView: View {
                 }
                 .buttonStyle(PillButtonStyle())
                 
+                if isRunning {
+                    Button {
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            appDelegate.skipBreak()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Reset")
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                        }
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(PillButtonStyle())
+                    .transition(
+                        AnyTransition.scale.combined(with: .opacity)
+                            .animation(.smooth(duration: 0.3))
+                    )
+                }
+                
                 Button {
                     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                         appDelegate.showBlurScreen(forTechnique: selectedPreset)
@@ -206,18 +289,27 @@ struct HomeView: View {
                 }
                 .buttonStyle(PillButtonStyle())
             }
-            .padding(.top, 20)
+            .padding(.top, 16)
             
-            Spacer()
-            
-            Text("Close this window to minimize to menu bar")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.bottom, 24)
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "menubar.arrow.up.rectangle")
+                        .font(.system(size: 14))
+                    Text("Unwind lives in your menu bar")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                
+                Text("Click the timer icon in the menu bar to access Unwind anytime")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary.opacity(0.8))
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 30)
-        .background(Color(NSColor.windowBackgroundColor))
-        .edgesIgnoringSafeArea(.all)
+        .padding(.vertical, 24)
+        .frame(idealWidth: 800)
+        .fixedSize(horizontal: false, vertical: true)
+        .preferredColorScheme(nil)
     }
 } 

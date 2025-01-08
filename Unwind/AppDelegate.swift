@@ -69,6 +69,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let timerState = TimerState()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        
         setupMainMenu()
         
         // Set default interval if not set
@@ -128,8 +130,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         
         homeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-            styleMask: [.titled, .fullSizeContentView, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 100),  // Height will be adjusted automatically
+            styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
@@ -137,11 +139,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         homeWindow?.isMovableByWindowBackground = true
         homeWindow?.titlebarAppearsTransparent = true
         homeWindow?.titleVisibility = .hidden
-        homeWindow?.backgroundColor = .clear
+        homeWindow?.backgroundColor = NSColor.clear
+        homeWindow?.isOpaque = false
+        homeWindow?.hasShadow = true
         
+        // Create container view with size fitting
+        let containerView = NSView(frame: .zero)  // Let the content determine the size
+        containerView.autoresizingMask = [.width, .height]
+        
+        // Create and add visual effect view
+        let visualEffect = NSVisualEffectView(frame: containerView.bounds)
+        visualEffect.material = .windowBackground
+        visualEffect.state = .active
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.wantsLayer = true
+        visualEffect.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
+        visualEffect.alphaValue = 1
+        visualEffect.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.9).cgColor
+        containerView.addSubview(visualEffect)
+        
+        // Create and add SwiftUI hosting view
+        let hostingView = NSHostingView(rootView: homeView)
+        hostingView.frame = containerView.bounds
+        hostingView.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
+        if let layer = hostingView.layer {
+            layer.backgroundColor = CGColor.clear
+        }
+        containerView.addSubview(hostingView)
+        
+        // Set the container as the window's content view
+        homeWindow?.contentView = containerView
+        
+        // Size window to fit content
+        homeWindow?.setContentSize(hostingView.fittingSize)
         homeWindow?.center()
-        homeWindow?.contentView = NSHostingView(rootView: homeView)
         homeWindow?.isReleasedWhenClosed = false
+        homeWindow?.delegate = self
     }
     
     private func setupNotifications() {
@@ -163,16 +196,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Break Timer")
             button.title = " Ready"
+            button.target = self
+            button.action = #selector(showHomeScreen)  // Make the button directly show the main window
         }
         
         updateMenuBarTitle()
-        
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: "b"))
-        
-        statusItem?.menu = menu
     }
     
     private func updateMenuBarTitle() {
@@ -251,29 +279,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc private func showHomeScreen() {
+        NSApp.setActivationPolicy(.regular)
+        
         if homeWindow == nil {
-            homeWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
-                styleMask: [.titled, .closable, .miniaturizable],
-                backing: .buffered,
-                defer: false
-            )
-            
-            homeWindow?.title = "Unwind"
-            homeWindow?.center()
-            
-            let homeView = HomeView(
-                timeInterval: timeInterval,
-                timerState: timerState,
-                onTimeIntervalChange: { [weak self] newValue in
-                    self?.timeInterval = newValue
-                }
-            )
-            
-            homeWindow?.contentView = NSHostingView(rootView: homeView)
-            homeWindow?.isReleasedWhenClosed = false
+            createAndShowHomeWindow()
         }
         
+        NSApp.activate(ignoringOtherApps: true)
         homeWindow?.makeKeyAndOrderFront(nil)
     }
     
@@ -281,43 +293,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         do {
             guard blurWindow == nil else { return }
             
-            guard let screen = NSScreen.main else {
-                throw UnwindError.windowCreationFailed
-            }
-            
-            let previewTechnique = technique ?? currentTechnique ?? "Custom"
-            
-            // Validate technique settings
-            if previewTechnique == "Custom" {
-                let breakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
-                let reminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
+            // Create a window for each screen
+            for screen in NSScreen.screens {
+                let window = try createBlurWindow(frame: screen.frame)
                 
-                guard breakDuration > 0 && reminderInterval > 0 else {
-                    throw UnwindError.customRuleNotConfigured
+                let blurView = BlurView(technique: technique ?? currentTechnique ?? "Custom")
+                window.contentView = NSHostingView(rootView: blurView)
+                window.makeKeyAndOrderFront(nil)
+                
+                if blurWindow == nil {
+                    blurWindow = window
                 }
             }
             
-            // Create and configure blur window
-            blurWindow = try createBlurWindow(frame: screen.frame)
-            
-            let blurView = BlurView(technique: previewTechnique)
-            blurWindow?.contentView = NSHostingView(rootView: blurView)
-            blurWindow?.makeKeyAndOrderFront(nil)
-            
-            // Handle sound
+            // Handle sound and notifications
             if UserDefaults.standard.bool(forKey: "playSound") {
                 try playBreakSound()
             }
             
-            // Handle notification
             if UserDefaults.standard.bool(forKey: "showNotifications") {
                 try showBreakNotification()
             }
             
-            // Set up dismissal
-            let dismissDuration = try getDismissalDuration(for: previewTechnique)
+            // Set up auto-dismissal with animation
+            let dismissDuration = try getDismissalDuration(for: technique ?? currentTechnique ?? "Custom")
             DispatchQueue.main.asyncAfter(deadline: .now() + dismissDuration) { [weak self] in
-                self?.dismissBlurScreen()
+                self?.skipBreak() // Use skipBreak instead of dismissBlurScreen for consistent animation
             }
             
         } catch {
@@ -333,12 +334,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         
-        window.level = .screenSaver
+        window.level = .statusBar
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
         window.acceptsMouseMovedEvents = true
         window.ignoresMouseEvents = false
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         return window
     }
@@ -400,10 +402,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func dismissBlurScreen() {
         DispatchQueue.main.async { [weak self] in
-            // Only close and nil the blur window
-            self?.blurWindow?.orderOut(nil)  // Changed from close() to orderOut(nil)
-            self?.blurWindow = nil
-            self?.breakSound?.stop()
+            guard let self = self else { return }
+            
+            // Trigger disappear animation in BlurView
+            if let windows = NSApplication.shared.windows.filter({ $0 is KeyableWindow }).filter({ $0 != self.homeWindow }) as? [KeyableWindow] {
+                for window in windows {
+                    if let hostingView = window.contentView as? NSHostingView<BlurView> {
+                        // Animate out
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            hostingView.rootView.isAppearing = false
+                        }
+                    }
+                }
+                
+                // Dismiss windows after animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    for window in windows {
+                        window.orderOut(nil)
+                    }
+                    self.blurWindow = nil
+                    self.breakSound?.stop()
+                    
+                    // Reset and start the timer
+                    do {
+                        try self.startTimer()
+                    } catch {
+                        self.handleError(error)
+                    }
+                }
+            }
         }
     }
     
@@ -437,11 +464,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func showCustomRuleSettings() {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }  // Strong self since we need it for delegate
+            guard let self = self else { return }
             
             if self.customRuleWindow == nil || self.customRuleWindow?.isVisible == false {
                 self.customRuleWindow = NSWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 240),
                     styleMask: [.titled, .closable],
                     backing: .buffered,
                     defer: false
@@ -449,8 +476,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 
                 self.customRuleWindow?.title = "Custom Rule"
                 self.customRuleWindow?.center()
-                self.customRuleWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-                self.customRuleWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
+                self.customRuleWindow?.titlebarAppearsTransparent = true
+                self.customRuleWindow?.isMovableByWindowBackground = true
+                self.customRuleWindow?.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                self.customRuleWindow?.standardWindowButton(.zoomButton)?.isHidden = true
                 
                 let customRuleView = CustomRuleView { [weak self] newValue in
                     self?.timeInterval = newValue
@@ -463,7 +492,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 
                 self.customRuleWindow?.contentView = NSHostingView(rootView: customRuleView)
                 self.customRuleWindow?.isReleasedWhenClosed = false
-                self.customRuleWindow?.delegate = self  // Now this will work
+                self.customRuleWindow?.delegate = self
             }
             
             NSApp.activate(ignoringOtherApps: true)
@@ -556,6 +585,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func updateTimeString(_ newValue: String) {
         DispatchQueue.main.async {
             self.timerState.timeString = newValue
+        }
+    }
+    
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if sender == homeWindow {
+            homeWindow?.orderOut(nil)
+            NSApp.setActivationPolicy(.accessory)
+            return false
+        }
+        return true
+    }
+    
+    private func handleWindowClose() {
+        // Additional cleanup if needed
+    }
+    
+    // Add this method to handle dock icon clicks
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showHomeScreen()
+        return true
+    }
+    
+    func skipBreak() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Trigger disappear animation in BlurView
+            if let windows = NSApplication.shared.windows.filter({ $0 is KeyableWindow }).filter({ $0 != self.homeWindow }) as? [KeyableWindow] {
+                for window in windows {
+                    if let hostingView = window.contentView as? NSHostingView<BlurView> {
+                        // Animate out
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            hostingView.rootView.isAppearing = false
+                        }
+                    }
+                }
+                
+                // Dismiss windows after animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    for window in windows {
+                        window.orderOut(nil)
+                    }
+                    self.blurWindow = nil
+                    self.breakSound?.stop()
+                    
+                    // Reset and start the timer
+                    do {
+                        self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                        try self.startTimer()
+                    } catch {
+                        self.handleError(error)
+                    }
+                }
+            }
         }
     }
 }

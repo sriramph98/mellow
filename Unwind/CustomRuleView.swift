@@ -1,55 +1,92 @@
 import SwiftUI
 
 struct CustomRuleView: View {
-    @State private var reminderInterval: Double
-    @State private var breakDuration: Double
-    let onIntervalChange: (TimeInterval) -> Void
+    @AppStorage("reminderInterval") private var reminderInterval = 1200
+    @AppStorage("breakDuration") private var breakDuration = 20
+    let onSave: (TimeInterval) -> Void
     
-    init(onIntervalChange: @escaping (TimeInterval) -> Void) {
-        self.onIntervalChange = onIntervalChange
-        let savedReminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
-        let savedBreakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
-        
-        _reminderInterval = State(initialValue: savedReminderInterval > 0 ? Double(savedReminderInterval) / 60.0 : 20.0)
-        _breakDuration = State(initialValue: savedBreakDuration > 0 ? Double(savedBreakDuration) / 60.0 : 1.0)
+    private var breakDurationInMinutes: Binding<Double> {
+        Binding(
+            get: { Double(breakDuration) / 60.0 },
+            set: { breakDuration = Int($0 * 60) }
+        )
     }
     
     var body: some View {
-        Form {
-            GroupBox(label: Text("Custom Rule").bold()) {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading) {
-                        Text("Remind after every")
-                        HStack {
-                            TextField("", value: $reminderInterval, formatter: NumberFormatter())
-                                .frame(width: 60)
-                            Text("minutes")
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Custom Break Settings")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+            
+            VStack(alignment: .leading, spacing: 16) {
+                // Reminder Interval Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Break Interval")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
                     
-                    VStack(alignment: .leading) {
-                        Text("Break for")
-                        HStack {
-                            TextField("", value: $breakDuration, formatter: NumberFormatter())
-                                .frame(width: 60)
-                            Text("minutes")
-                        }
+                    HStack(spacing: 16) {
+                        Slider(
+                            value: Binding(
+                                get: { Double(reminderInterval) / 60.0 },
+                                set: { reminderInterval = Int($0 * 60) }
+                            ),
+                            in: 1...60
+                        )
+                        .frame(width: 160)
+                        
+                        Text("\(Int(Double(reminderInterval) / 60.0)) min")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 50, alignment: .trailing)
                     }
                 }
-                .onChange(of: reminderInterval) { _, newValue in
-                    let seconds = Int(newValue * 60)
-                    UserDefaults.standard.set(seconds, forKey: "reminderInterval")
-                    onIntervalChange(TimeInterval(seconds))
-                }
-                .onChange(of: breakDuration) { _, newValue in
-                    let seconds = Int(newValue * 60)
-                    UserDefaults.standard.set(seconds, forKey: "breakDuration")
+                
+                // Break Duration Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Break Duration")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    
+                    HStack(spacing: 16) {
+                        Slider(
+                            value: breakDurationInMinutes,
+                            in: 0.5...10  // 30 seconds to 10 minutes
+                        )
+                        .frame(width: 160)
+                        
+                        Text(String(format: "%.1f min", Double(breakDuration) / 60.0))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 50, alignment: .trailing)
+                    }
                 }
             }
+            .padding(16)
+            .background {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.background)
+            }
+            
+            Spacer()
+            
+            HStack {
+                Spacer()
+                Button("Apply") {
+                    onSave(TimeInterval(reminderInterval))
+                    if let window = NSApplication.shared.windows.first(where: { $0.title == "Custom Rule" }) {
+                        window.close()
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+            }
         }
-        .formStyle(.grouped)
-        .padding()
+        .padding(20)
         .frame(width: 300)
-        .fixedSize()
+        .background(.windowBackground)
     }
+}
+
+#Preview {
+    CustomRuleView { _ in }
 } 
