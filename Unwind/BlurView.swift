@@ -2,36 +2,63 @@ import SwiftUI
 import Combine
 
 struct BlurView: View {
-    @State private var timeRemaining = 60
+    let technique: String
+    @State private var timeRemaining: Int
     @State private var timer: Timer.TimerPublisher = Timer.publish(every: 1, on: .main, in: .common)
     @State private var timerSubscription: AnyCancellable?
     @State private var opacity: Double = 0
     
+    init(technique: String) {
+        self.technique = technique
+        // Set initial time based on technique
+        _timeRemaining = State(initialValue: technique == "20-20-20" ? 20 : 300)
+    }
+    
+    var instructionText: String {
+        switch technique {
+        case "20-20-20":
+            return "Look at something 20 feet away"
+        case "Pomodoro":
+            return "Take a refreshing break"
+        default:
+            return "Take a break"
+        }
+    }
+    
     var body: some View {
         ZStack {
-            // Background blur
             VisualEffectView(material: .fullScreenUI, blendingMode: .behindWindow)
                 .edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 20) {
-                Text("Take a Break")
+                Text(technique)
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
-                Text("Relax for a minute")
+                Text(instructionText)
                     .font(.system(size: 24, design: .rounded))
                     .foregroundColor(.white)
                 
-                Text("\(timeRemaining)s")
+                Text(formatTime(timeRemaining))
                     .font(.system(size: 40, weight: .medium, design: .rounded))
                     .foregroundColor(.white)
                     .monospacedDigit()
                 
+                if technique == "20-20-20" {
+                    Image(systemName: "eye")
+                        .font(.system(size: 40))
+                        .foregroundColor(.white)
+                } else if technique == "Pomodoro" {
+                    Image(systemName: "cup.and.saucer")
+                        .font(.system(size: 40))
+                        .foregroundColor(.white)
+                }
+                
                 Button("Skip") {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    timerSubscription?.cancel()
+                    withAnimation(.easeOut(duration: 0.3)) {
                         opacity = 0
                     }
-                    timerSubscription?.cancel()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                             appDelegate.dismissBlurScreen()
@@ -45,10 +72,10 @@ struct BlurView: View {
         }
         .opacity(opacity)
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeIn(duration: 0.3)) {
                 opacity = 1
             }
-            timeRemaining = 60
+            
             timerSubscription = timer.autoconnect().sink { _ in
                 if timeRemaining > 0 {
                     timeRemaining -= 1
@@ -57,6 +84,16 @@ struct BlurView: View {
         }
         .onDisappear {
             timerSubscription?.cancel()
+        }
+    }
+    
+    private func formatTime(_ seconds: Int) -> String {
+        if seconds < 60 {
+            return "\(seconds)s"
+        } else {
+            let minutes = seconds / 60
+            let remainingSeconds = seconds % 60
+            return String(format: "%d:%02d", minutes, remainingSeconds)
         }
     }
 }
