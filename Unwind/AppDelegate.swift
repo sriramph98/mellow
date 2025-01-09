@@ -380,7 +380,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             isAnimatingOut = false
             blurWindows.removeAll()
             
-            // Create a window for each screen
+            // Create blur windows without starting timer
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
                 
@@ -410,12 +410,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             if UserDefaults.standard.bool(forKey: "showNotifications") {
                 try showBreakNotification()
-            }
-            
-            // Set up auto-dismissal with animation
-            let dismissDuration = try getDismissalDuration(for: technique ?? currentTechnique ?? "Custom")
-            DispatchQueue.main.asyncAfter(deadline: .now() + dismissDuration) { [weak self] in
-                self?.skipBreak() // Use skipBreak instead of dismissBlurScreen for consistent animation
             }
             
         } catch {
@@ -761,12 +755,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             
-            // Set initial countdown value
+            // Set initial countdown value without starting timer
             nextBreakTime = Date().addingTimeInterval(timeInterval)
             let initialMinutes = Int(timeInterval) / 60
             let initialSeconds = Int(timeInterval) % 60
             timerState.timeString = String(format: "%d:%02d", initialMinutes, initialSeconds)
             
+            // Only start timer if explicitly requested
             try startTimer()
             
         } catch {
@@ -847,12 +842,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.blurWindow = nil
                 self.breakSound?.stop()
                 
-                // Reset and start the timer
-                do {
-                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                    try self.startTimer()
-                } catch {
-                    self.handleError(error)
+                // Reset and start the timer only if it was running before
+                if self.timer != nil {
+                    do {
+                        self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                        try self.startTimer()
+                    } catch {
+                        self.handleError(error)
+                    }
+                } else {
+                    // Just update the display without starting timer
+                    self.updateMenuBarTitle()
                 }
             }
         }
