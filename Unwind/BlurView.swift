@@ -247,3 +247,12 @@ struct ContentAnimationModifier: ViewModifier {
             )
     }
 }
+
+#Preview {
+    BlurView(
+        technique: "20-20-20 Rule",
+        screen: NSScreen.main ?? NSScreen(),
+        pomodoroCount: 0,
+        isAnimatingOut: .constant(false)
+    )
+}

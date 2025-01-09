@@ -16,4 +16,5 @@ struct AdvancedSettingsView: View {
         .frame(width: 300)
         .fixedSize()
     }
-} 
+}
+

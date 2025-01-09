@@ -4,6 +4,8 @@ struct CustomRuleView: View {
     @AppStorage("reminderInterval") private var reminderInterval = 1200
     @AppStorage("breakDuration") private var breakDuration = 20
     let onSave: (TimeInterval) -> Void
+    let onClose: () -> Void
+    @State private var isAppearing = false
     
     private var breakDurationInMinutes: Binding<Double> {
         Binding(
@@ -13,17 +15,36 @@ struct CustomRuleView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Custom Break Settings")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            // Header with close button
+            HStack {
+                Text("Custom Break")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Button(action: dismissSettings) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+            }
             
-            VStack(alignment: .leading, spacing: 16) {
-                // Reminder Interval Section
-                VStack(alignment: .leading, spacing: 8) {
+            // Settings content
+            VStack(alignment: .leading, spacing: 24) {
+                // Break Interval Section
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Break Interval")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text("How often should we remind you to take a break?")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineSpacing(2)
                     
                     HStack(spacing: 16) {
                         Slider(
@@ -33,60 +54,115 @@ struct CustomRuleView: View {
                             ),
                             in: 1...60
                         )
-                        .frame(width: 160)
+                        .tint(Color(nsColor: .controlAccentColor))
+                        .frame(width: 200)
                         
                         Text("\(Int(Double(reminderInterval) / 60.0)) min")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.white)
                             .frame(width: 50, alignment: .trailing)
                     }
+                    .padding(.top, 8)
                 }
                 
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                
                 // Break Duration Section
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Break Duration")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text("How long should each break last?")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineSpacing(2)
                     
                     HStack(spacing: 16) {
                         Slider(
                             value: breakDurationInMinutes,
-                            in: 0.5...10  // 30 seconds to 10 minutes
+                            in: 0.5...10
                         )
-                        .frame(width: 160)
+                        .tint(Color(nsColor: .controlAccentColor))
                         
                         Text(String(format: "%.1f min", Double(breakDuration) / 60.0))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.white)
                             .frame(width: 50, alignment: .trailing)
                     }
+                    .padding(.top, 8)
                 }
             }
-            .padding(16)
-            .background {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.background)
-            }
             
-            Spacer()
+            Spacer(minLength: 16)
             
+            // Apply button at bottom right
             HStack {
                 Spacer()
-                Button("Apply") {
-                    onSave(TimeInterval(reminderInterval))
-                    if let window = NSApplication.shared.windows.first(where: { $0.title == "Custom Rule" }) {
-                        window.close()
-                    }
+                
+                Button(action: saveAndClose) {
+                    Text("Apply")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
                 }
+                .buttonStyle(PillButtonStyle())  // Using the same style as home window
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(20)
-        .frame(width: 300)
-        .background(.windowBackground)
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .background(
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.8))
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .opacity(isAppearing ? 1 : 0)
+        .scaleEffect(isAppearing ? 1 : 0.95)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.2)) {
+                isAppearing = true
+            }
+        }
+    }
+    
+    private func dismissSettings() {
+        withAnimation(.easeIn(duration: 0.2)) {
+            isAppearing = false
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            onClose()
+        }
+    }
+    
+    private func saveAndClose() {
+        onSave(TimeInterval(reminderInterval))
+        dismissSettings()
     }
 }
 
 #Preview {
-    CustomRuleView { _ in }
+    CustomRuleView(
+        onSave: { _ in },
+        onClose: {}
+    )
+    .frame(height: 240)
+    .background(.background)
+}
+
+#Preview("Dark Mode") {
+    CustomRuleView(
+        onSave: { _ in },
+        onClose: {}
+    )
+    .frame(height: 240)
+    .background(.background)
+    .preferredColorScheme(.dark)
 } 

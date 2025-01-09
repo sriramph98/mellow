@@ -69,6 +69,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let timerState = TimerState()
     @Published private var isAnimatingOut = false
     private var blurWindows: [NSWindow] = []  // Add array to track all blur windows
+    private var settingsOverlayWindow: NSWindow?
+    private var settingsBlurView: NSView?
+    private var customRuleOverlayView: NSView?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -88,7 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // Ensure app is active and window is front
         DispatchQueue.main.async { [weak self] in
-            NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApplication.shared.activate(ignoringOtherApps: true)
             self?.homeWindow?.makeKeyAndOrderFront(nil)
         }
     }
@@ -103,7 +106,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         mainMenu.addItem(appMenuItem)
         
         let appName = ProcessInfo.processInfo.processName
-        appMenu.addItem(NSMenuItem(title: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
+        
+        // Configure About menu item with custom handler
+        let aboutMenuItem = NSMenuItem(
+            title: "About \(appName)",
+            action: #selector(showAboutPanel),
+            keyEquivalent: ""
+        )
+        appMenu.addItem(aboutMenuItem)
+        
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(NSMenuItem(title: "Show", action: #selector(showHomeScreen), keyEquivalent: "s"))
         appMenu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
@@ -529,68 +540,190 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc func showSettings() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }  // Strong self since we need it for delegate
+        if let homeWindow = homeWindow {
+            // Create overlay window
+            let settingsView = SettingsView(onClose: { [weak self] in
+                self?.closeSettings()
+            })
+            .environment(\.colorScheme, .dark)
             
-            if self.settingsWindow == nil || self.settingsWindow?.isVisible == false {
-                self.settingsWindow = NSWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
-                    styleMask: [.titled, .closable],
-                    backing: .buffered,
-                    defer: false
-                )
-                
-                self.settingsWindow?.title = "App Settings"
-                self.settingsWindow?.center()
-                self.settingsWindow?.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-                self.settingsWindow?.standardWindowButton(.zoomButton)?.isEnabled = false
-                
-                let settingsView = AdvancedSettingsView()
-                self.settingsWindow?.contentView = NSHostingView(rootView: settingsView)
-                self.settingsWindow?.isReleasedWhenClosed = false
-                self.settingsWindow?.delegate = self  // Now this will work
+            let hostingView = NSHostingView(rootView: settingsView)
+            hostingView.setFrameSize(hostingView.fittingSize)  // Size to fit content
+            
+            let overlayWindow = NSWindow(
+                contentRect: hostingView.frame,  // Use hosting view's size
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            
+            overlayWindow.backgroundColor = .clear
+            overlayWindow.isOpaque = false
+            overlayWindow.hasShadow = true
+            overlayWindow.level = .floating
+            
+            // Add corner radius to window
+            overlayWindow.contentView = hostingView
+            if let contentView = overlayWindow.contentView {
+                contentView.wantsLayer = true
+                contentView.layer?.cornerRadius = 12
+                contentView.layer?.masksToBounds = true
             }
             
-            NSApp.activate(ignoringOtherApps: true)
-            self.settingsWindow?.makeKeyAndOrderFront(nil)
+            // Make overlay window move with main window
+            homeWindow.addChildWindow(overlayWindow, ordered: .above)
+            
+            // Position overlay centered on home window
+            positionSettingsOverlay(overlayWindow, relativeTo: homeWindow)
+            
+            // Store reference to overlay window
+            settingsOverlayWindow = overlayWindow
+            
+            // Add simple dimming overlay to home window
+            if let contentView = homeWindow.contentView {
+                let overlayView = NSView(frame: contentView.bounds)
+                overlayView.wantsLayer = true
+                
+                // Use black with 40% opacity for dark theme
+                overlayView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
+                
+                overlayView.alphaValue = 0
+                contentView.addSubview(overlayView)
+                
+                // Animate overlay in
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.2
+                    overlayView.animator().alphaValue = 1
+                }
+                
+                // Store reference to overlay view
+                settingsBlurView = overlayView
+            }
+            
+            // Show overlay
+            overlayWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+    
+    private func positionSettingsOverlay(_ overlay: NSWindow, relativeTo parent: NSWindow) {
+        let parentFrame = parent.frame
+        let overlayFrame = overlay.frame
+        let x = parentFrame.origin.x + (parentFrame.width - overlayFrame.width) / 2
+        let y = parentFrame.origin.y + (parentFrame.height - overlayFrame.height) / 2
+        overlay.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+    
+    private func closeSettings() {
+        // Animate overlay view out
+        if let overlayView = settingsBlurView {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                overlayView.animator().alphaValue = 0
+                
+                // Reset opacity of main window content
+                if let contentView = homeWindow?.contentView {
+                    contentView.animator().alphaValue = 1.0
+                }
+            } completionHandler: {
+                overlayView.removeFromSuperview()
+                self.settingsBlurView = nil
+                
+                // Close and cleanup overlay window
+                if let overlay = self.settingsOverlayWindow {
+                    self.homeWindow?.removeChildWindow(overlay)
+                    overlay.orderOut(nil)
+                    self.settingsOverlayWindow = nil
+                }
+            }
+        }
+    }
+    
+    // Add window delegate method to handle main window movement
+    func windowDidMove(_ notification: Notification) {
+        if let homeWindow = notification.object as? NSWindow,
+           homeWindow == self.homeWindow,
+           let overlay = settingsOverlayWindow {
+            positionSettingsOverlay(overlay, relativeTo: homeWindow)
         }
     }
     
     func showCustomRuleSettings() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            if self.customRuleWindow == nil || self.customRuleWindow?.isVisible == false {
-                self.customRuleWindow = NSWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: 300, height: 240),
-                    styleMask: [.titled, .closable],
-                    backing: .buffered,
-                    defer: false
-                )
-                
-                self.customRuleWindow?.title = "Custom Rule"
-                self.customRuleWindow?.center()
-                self.customRuleWindow?.titlebarAppearsTransparent = true
-                self.customRuleWindow?.isMovableByWindowBackground = true
-                self.customRuleWindow?.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                self.customRuleWindow?.standardWindowButton(.zoomButton)?.isHidden = true
-                
-                let customRuleView = CustomRuleView { [weak self] newValue in
-                    self?.timeInterval = newValue
-                    do {
-                        try self?.startTimer()
-                    } catch {
-                        self?.handleError(error)
-                    }
+        if let homeWindow = homeWindow {
+            let customRuleView = CustomRuleView(
+                onSave: { [weak self] newValue in
+                    self?.timeInterval = newValue  // Just update the time interval
+                    self?.closeCustomRuleSettings()
+                },
+                onClose: { [weak self] in
+                    self?.closeCustomRuleSettings()  // Just close
                 }
-                
-                self.customRuleWindow?.contentView = NSHostingView(rootView: customRuleView)
-                self.customRuleWindow?.isReleasedWhenClosed = false
-                self.customRuleWindow?.delegate = self
+            )
+            .environment(\.colorScheme, .dark)
+            
+            let hostingView = NSHostingView(rootView: customRuleView)
+            hostingView.setFrameSize(hostingView.fittingSize)  // Size to fit content
+            
+            let overlayWindow = NSWindow(
+                contentRect: hostingView.frame,  // Use hosting view's size
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            
+            overlayWindow.backgroundColor = .clear
+            overlayWindow.isOpaque = false
+            overlayWindow.hasShadow = true
+            overlayWindow.level = .floating
+            
+            overlayWindow.contentView = hostingView
+            if let contentView = overlayWindow.contentView {
+                contentView.wantsLayer = true
+                contentView.layer?.cornerRadius = 12
+                contentView.layer?.masksToBounds = true
             }
             
-            NSApp.activate(ignoringOtherApps: true)
-            self.customRuleWindow?.makeKeyAndOrderFront(nil)
+            homeWindow.addChildWindow(overlayWindow, ordered: .above)
+            positionSettingsOverlay(overlayWindow, relativeTo: homeWindow)
+            
+            // Add dimming overlay
+            if let contentView = homeWindow.contentView {
+                let overlayView = NSView(frame: contentView.bounds)
+                overlayView.wantsLayer = true
+                overlayView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
+                overlayView.alphaValue = 0
+                contentView.addSubview(overlayView)
+                
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.2
+                    overlayView.animator().alphaValue = 1
+                }
+                
+                customRuleOverlayView = overlayView
+            }
+            
+            customRuleWindow = overlayWindow
+            overlayWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+    
+    private func closeCustomRuleSettings() {
+        if let overlayView = customRuleOverlayView {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                overlayView.animator().alphaValue = 0
+                
+                // Reset window opacity
+                homeWindow?.animator().alphaValue = 1.0
+            } completionHandler: {
+                overlayView.removeFromSuperview()
+                self.customRuleOverlayView = nil
+                
+                if let overlay = self.customRuleWindow {
+                    self.homeWindow?.removeChildWindow(overlay)
+                    overlay.orderOut(nil)
+                    self.customRuleWindow = nil
+                }
+            }
         }
     }
     
@@ -726,5 +859,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }
+    }
+    
+    @objc private func showAboutPanel() {
+        NSApplication.shared.orderFrontStandardAboutPanel(
+            options: [
+                .applicationIcon: NSImage(named: "UnwindLogo") ?? NSImage(),
+                .applicationName: "Unwind",
+                .version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+                .credits: NSAttributedString(
+                    string: "A mindful break reminder for your productivity.",
+                    attributes: [
+                        .font: NSFont.systemFont(ofSize: 11),
+                        .foregroundColor: NSColor.secondaryLabelColor
+                    ]
+                )
+            ]
+        )
     }
 }

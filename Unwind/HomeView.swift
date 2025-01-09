@@ -187,7 +187,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "20-20-20 Rule",
                     isSelected: selectedPreset == "20-20-20 Rule",
-                    description: "Every 20 minutes, look 20 feet away for 20 seconds.\nYour eyes will love you for it!",
+                    description: "Every 20 minutes, look 20 feet away for 20 seconds.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "20-20-20 Rule"
@@ -201,7 +201,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Pomodoro Technique",
                     isSelected: selectedPreset == "Pomodoro Technique",
-                    description: "Work in focused 25-minute sessions.\nTake short breaks between sessions and a longer break after 4 sessions.",
+                    description: "Work in focused 25-minute sessions.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Pomodoro Technique"
@@ -215,7 +215,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Custom",
                     isSelected: selectedPreset == "Custom",
-                    description: "Your time, your rules.\nCustomize focus and break intervals to match your workflow and stay productive on your terms.",
+                    description: "Customize to match your workflow and stay productive on your terms.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Custom"
@@ -295,7 +295,7 @@ struct HomeView: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 
-                Text("Click the timer icon in the menu bar to access Unwind anytime")
+                Text("Click the icon in the menu bar to access Unwind anytime")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary.opacity(0.8))
             }
@@ -306,4 +306,35 @@ struct HomeView: View {
         .frame(idealWidth: 800)
         .fixedSize(horizontal: false, vertical: true)
     }
+}
+
+#Preview {
+    HomeView(
+        timeInterval: 1200,
+        timerState: TimerState(),
+        onTimeIntervalChange: { _ in }
+    )
+    .frame(width: 800, height: 600)
+    .background(Color.black.opacity(0.8))
+}
+
+struct PresetCardPreview: View {
+    @Namespace private var namespace
+    
+    var body: some View {
+        PresetCard(
+            title: "20-20-20 Rule",
+            isSelected: true,
+            description: "Every 20 minutes, look 20 feet away for 20 seconds.",
+            action: {},
+            namespace: namespace
+        )
+        .frame(width: 250)
+        .background(Color.black.opacity(0.8))
+        .padding()
+    }
+}
+
+#Preview("Preset Card") {
+    PresetCardPreview()
 } 
