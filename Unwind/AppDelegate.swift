@@ -57,8 +57,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private var nextBreakTime: Date?
     private var currentTechnique: String?
-    private var shortBreakDuration: TimeInterval = 20 // For 20-20-20 rule
-    private var longBreakDuration: TimeInterval = 300 // 5 minutes for Pomodoro
+    private var shortBreakDuration: TimeInterval = 300  // 5 minutes
+    private var longBreakDuration: TimeInterval = 1800  // 30 minutes
     private var pomodoroCount: Int = 0
     private var customBreakDuration: TimeInterval {
         TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
@@ -67,6 +67,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var lastUsedInterval: TimeInterval?
     private var lastUsedBreakDuration: TimeInterval?
     private let timerState = TimerState()
+    @Published private var isAnimatingOut = false
+    private var blurWindows: [NSWindow] = []  // Add array to track all blur windows
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -130,47 +132,70 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         
         homeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 100),  // Height will be adjusted automatically
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 100),
             styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         
+        // Add beta tag to title
+        let betaTag = NSTextField(labelWithString: "BETA")
+        betaTag.font = .systemFont(ofSize: 10, weight: .medium)
+        betaTag.textColor = .white
+        betaTag.backgroundColor = NSColor(white: 1.0, alpha: 0.2)
+        betaTag.isBezeled = false
+        betaTag.isEditable = false
+        betaTag.alignment = .center
+        betaTag.frame = NSRect(x: homeWindow!.frame.width - 60, y: homeWindow!.frame.height - 28, width: 40, height: 18)
+        betaTag.layer?.cornerRadius = 4
+        betaTag.layer?.masksToBounds = true
+        
+        if let titlebarView = homeWindow?.standardWindowButton(.closeButton)?.superview?.superview {
+            titlebarView.addSubview(betaTag)
+        }
+        
+        // Configure window for appearance modes
+        homeWindow?.appearance = NSAppearance(named: .darkAqua)
         homeWindow?.isMovableByWindowBackground = true
         homeWindow?.titlebarAppearsTransparent = true
         homeWindow?.titleVisibility = .hidden
-        homeWindow?.backgroundColor = NSColor.clear
+        homeWindow?.backgroundColor = .clear
         homeWindow?.isOpaque = false
         homeWindow?.hasShadow = true
         
         // Create container view with size fitting
-        let containerView = NSView(frame: .zero)  // Let the content determine the size
+        let containerView = NSView(frame: .zero)
         containerView.autoresizingMask = [.width, .height]
         
-        // Create and add visual effect view
+        // Create visual effect view with proper materials
         let visualEffect = NSVisualEffectView(frame: containerView.bounds)
-        visualEffect.material = .windowBackground
-        visualEffect.state = .active
+        visualEffect.material = .hudWindow
         visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
         visualEffect.wantsLayer = true
-        visualEffect.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
-        visualEffect.alphaValue = 1
-        visualEffect.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.9).cgColor
+        visualEffect.appearance = NSAppearance(named: .darkAqua)  // Force dark appearance
+        
+        // Configure background for both modes
+        visualEffect.autoresizingMask = [.width, .height]
+        if let layer = visualEffect.layer {
+            layer.backgroundColor = NSColor.black.withAlphaComponent(0.8).cgColor
+        }
+        
         containerView.addSubview(visualEffect)
         
         // Create and add SwiftUI hosting view
         let hostingView = NSHostingView(rootView: homeView)
         hostingView.frame = containerView.bounds
-        hostingView.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
+        hostingView.autoresizingMask = [.width, .height]
+        
+        // Ensure hosting view is transparent to show blur
         if let layer = hostingView.layer {
-            layer.backgroundColor = CGColor.clear
+            layer.backgroundColor = .clear
         }
+        
         containerView.addSubview(hostingView)
         
-        // Set the container as the window's content view
         homeWindow?.contentView = containerView
-        
-        // Size window to fit content
         homeWindow?.setContentSize(hostingView.fittingSize)
         homeWindow?.center()
         homeWindow?.isReleasedWhenClosed = false
@@ -194,10 +219,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Break Timer")
-            button.title = " Ready"
+            if let menuBarIcon = NSImage(named: "menuBarIcon") {
+                // Configure for appearance modes
+                menuBarIcon.isTemplate = true  // Ensures proper light/dark mode adaptation
+                menuBarIcon.size = NSSize(width: 18, height: 18)
+                
+                // Set up button with proper scaling
+                button.image = menuBarIcon
+                button.imagePosition = .imageLeft
+                button.imageScaling = .scaleProportionallyDown
+                
+                // Support dynamic appearance changes
+                button.appearance = NSAppearance(named: .darkAqua)
+            }
+            
+            button.title = ""
             button.target = self
-            button.action = #selector(showHomeScreen)  // Make the button directly show the main window
+            button.action = #selector(showHomeScreen)
         }
         
         updateMenuBarTitle()
@@ -210,15 +248,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if timeRemaining > 0 {
                     let minutes = Int(timeRemaining) / 60
                     let seconds = Int(timeRemaining) % 60
-                    timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                    button.title = " \(minutes)m"
+                    
+                    // Show seconds when under a minute
+                    if minutes == 0 {
+                        timerState.timeString = String(format: "%ds", seconds)
+                        button.title = " \(seconds)s"
+                    } else {
+                        timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                        button.title = " \(minutes)m"
+                    }
                 } else {
                     timerState.timeString = "0:00"
-                    button.title = " 0m"
+                    button.title = " 0s"
                 }
             } else {
                 timerState.timeString = ""
-                button.title = " Ready"
+                button.title = ""
+                
+                // Reset to custom icon
+                if let menuBarIcon = NSImage(named: "menuBarIcon") {
+                    menuBarIcon.isTemplate = true
+                    menuBarIcon.size = NSSize(width: 18, height: 18)
+                    button.image = menuBarIcon
+                    button.imageScaling = .scaleProportionallyDown
+                }
             }
         }
     }
@@ -253,15 +306,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if timeRemaining > 0 {
                     let minutes = Int(timeRemaining) / 60
                     let seconds = Int(timeRemaining) % 60
-                    self.updateTimeString(String(format: "%d:%02d", minutes, seconds))
                     
-                    if let button = self.statusItem?.button {
-                        button.title = " \(minutes)m"
+                    // Show seconds when under a minute
+                    if minutes == 0 {
+                        self.updateTimeString(String(format: "%ds", seconds))
+                        if let button = self.statusItem?.button {
+                            button.title = " \(seconds)s"
+                        }
+                    } else {
+                        self.updateTimeString(String(format: "%d:%02d", minutes, seconds))
+                        if let button = self.statusItem?.button {
+                            button.title = " \(minutes)m"
+                        }
                     }
                 } else {
-                    self.updateTimeString("0:00")
+                    self.updateTimeString("0s")
                     if let button = self.statusItem?.button {
-                        button.title = " 0m"
+                        button.title = " 0s"
                     }
                     
                     self.showBlurScreen(forTechnique: self.currentTechnique)
@@ -273,7 +334,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Set initial value
         let initialMinutes = Int(timeInterval) / 60
         let initialSeconds = Int(timeInterval) % 60
-        updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
+        if initialMinutes == 0 {
+            updateTimeString(String(format: "%ds", initialSeconds))
+        } else {
+            updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
+        }
         
         RunLoop.main.add(timer!, forMode: .common)
     }
@@ -285,21 +350,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             createAndShowHomeWindow()
         }
         
+        // Ensure window is visible and app is active
+        if let window = homeWindow {
+            if window.isVisible {
+                window.orderFront(nil)
+            } else {
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
+        
+        // Activate app and bring to front
         NSApp.activate(ignoringOtherApps: true)
-        homeWindow?.makeKeyAndOrderFront(nil)
     }
     
     func showBlurScreen(forTechnique technique: String? = nil) {
         do {
             guard blurWindow == nil else { return }
+            isAnimatingOut = false
+            blurWindows.removeAll()
             
             // Create a window for each screen
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
                 
-                let blurView = BlurView(technique: technique ?? currentTechnique ?? "Custom")
+                let blurView = BlurView(
+                    technique: technique ?? currentTechnique ?? "Custom",
+                    screen: screen,
+                    pomodoroCount: pomodoroCount,
+                    isAnimatingOut: .init(
+                        get: { self.isAnimatingOut },
+                        set: { self.isAnimatingOut = $0 }
+                    )
+                )
                 window.contentView = NSHostingView(rootView: blurView)
                 window.makeKeyAndOrderFront(nil)
+                
+                blurWindows.append(window)
                 
                 if blurWindow == nil {
                     blurWindow = window
@@ -376,10 +462,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     private func getDismissalDuration(for technique: String) throws -> TimeInterval {
         switch technique {
-        case "20-20-20":
+        case "20-20-20 Rule":
+            return 20
+        case "Pomodoro Technique":
+            // After 4 pomodoros, take a long break
+            if pomodoroCount >= 4 {
+                pomodoroCount = 0
+                return longBreakDuration
+            }
             return shortBreakDuration
-        case "Pomodoro":
-            return longBreakDuration
         case "Custom":
             let duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
             guard duration > 0 else { throw UnwindError.customRuleNotConfigured }
@@ -404,31 +495,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Trigger disappear animation in BlurView
-            if let windows = NSApplication.shared.windows.filter({ $0 is KeyableWindow }).filter({ $0 != self.homeWindow }) as? [KeyableWindow] {
-                for window in windows {
-                    if let hostingView = window.contentView as? NSHostingView<BlurView> {
-                        // Animate out
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            hostingView.rootView.isAppearing = false
-                        }
+            // Get all blur windows
+            let blurWindows = NSApplication.shared.windows
+                .filter { $0 is KeyableWindow && $0 != self.homeWindow }
+                as? [KeyableWindow] ?? []
+            
+            // First, animate all views simultaneously
+            for window in blurWindows {
+                if let hostingView = window.contentView as? NSHostingView<BlurView> {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        hostingView.rootView.isAppearing = false
                     }
                 }
+            }
+            
+            // Then dismiss all windows after animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                for window in blurWindows {
+                    window.orderOut(nil)
+                }
                 
-                // Dismiss windows after animation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    for window in windows {
-                        window.orderOut(nil)
-                    }
-                    self.blurWindow = nil
-                    self.breakSound?.stop()
-                    
-                    // Reset and start the timer
-                    do {
-                        try self.startTimer()
-                    } catch {
-                        self.handleError(error)
-                    }
+                self.blurWindow = nil
+                self.breakSound?.stop()
+                
+                // Reset and start the timer
+                do {
+                    try self.startTimer()
+                } catch {
+                    self.handleError(error)
                 }
             }
         }
@@ -507,15 +601,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             
             currentTechnique = technique
-            pomodoroCount = 0
             
             switch technique {
-            case "20-20-20":
+            case "20-20-20 Rule":
                 timeInterval = 1200  // 20 minutes
-                shortBreakDuration = 20
-            case "Pomodoro":
+            case "Pomodoro Technique":
                 timeInterval = 1500  // 25 minutes
-                shortBreakDuration = 300
+                pomodoroCount += 1
             case "Custom":
                 let reminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
                 let breakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
@@ -611,32 +703,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Trigger disappear animation in BlurView
-            if let windows = NSApplication.shared.windows.filter({ $0 is KeyableWindow }).filter({ $0 != self.homeWindow }) as? [KeyableWindow] {
-                for window in windows {
-                    if let hostingView = window.contentView as? NSHostingView<BlurView> {
-                        // Animate out
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            hostingView.rootView.isAppearing = false
-                        }
-                    }
+            // Trigger animation for all windows
+            self.isAnimatingOut = true
+            
+            // Dismiss windows after animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // Close all tracked blur windows
+                for window in self.blurWindows {
+                    window.orderOut(nil)
                 }
                 
-                // Dismiss windows after animation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    for window in windows {
-                        window.orderOut(nil)
-                    }
-                    self.blurWindow = nil
-                    self.breakSound?.stop()
-                    
-                    // Reset and start the timer
-                    do {
-                        self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                        try self.startTimer()
-                    } catch {
-                        self.handleError(error)
-                    }
+                self.blurWindows.removeAll()
+                self.blurWindow = nil
+                self.breakSound?.stop()
+                
+                // Reset and start the timer
+                do {
+                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                    try self.startTimer()
+                } catch {
+                    self.handleError(error)
                 }
             }
         }

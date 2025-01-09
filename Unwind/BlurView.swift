@@ -1,11 +1,68 @@
 import SwiftUI
 import Combine
 
+public struct VisualEffectView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+    
+    init(
+        material: NSVisualEffectView.Material,
+        blendingMode: NSVisualEffectView.BlendingMode
+    ) {
+        self.material = material
+        self.blendingMode = blendingMode
+    }
+    
+    public func makeNSView(context: Context) -> NSVisualEffectView {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+        visualEffectView.state = .active
+        visualEffectView.wantsLayer = true
+        
+        // Force dark appearance for consistent look
+        if let darkAppearance = NSAppearance(named: .darkAqua) {
+            visualEffectView.appearance = darkAppearance
+        }
+        
+        return visualEffectView
+    }
+    
+    public func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+    }
+}
+
 struct BlurView: View {
     let technique: String
-    @State private var timeRemaining: TimeInterval = 20
+    let screen: NSScreen
+    let pomodoroCount: Int
+    @State private var timeRemaining: TimeInterval
     @State var isAppearing = false
+    @Binding var isAnimatingOut: Bool
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var wallpaperImage: NSImage?
+    
+    init(technique: String, screen: NSScreen, pomodoroCount: Int, isAnimatingOut: Binding<Bool>) {
+        self.technique = technique
+        self.screen = screen
+        self.pomodoroCount = pomodoroCount
+        self._isAnimatingOut = isAnimatingOut
+        
+        let duration: TimeInterval
+        switch technique {
+        case "20-20-20 Rule":
+            duration = 20
+        case "Pomodoro Technique":
+            duration = pomodoroCount >= 4 ? 1800 : 300
+        case "Custom":
+            duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
+        default:
+            duration = 20
+        }
+        self._timeRemaining = State(initialValue: duration)
+    }
     
     // Get screen width for relative sizing
     private var screenWidth: CGFloat {
@@ -13,29 +70,25 @@ struct BlurView: View {
     }
     
     private func handleSkip() {
-        withAnimation(.easeOut(duration: 0.3)) {
-            isAppearing = false
-        }
-        
-        // Delay the actual dismissal to allow animation to complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                appDelegate.skipBreak()
-            }
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            appDelegate.skipBreak()
         }
     }
     
     private var content: (title: String, description: String) {
         switch technique {
-        case "20-20-20":
+        case "20-20-20 Rule":
             return (
                 "Time for a Quick Reset!",
                 "Look 20 feet away for 20 seconds."
             )
-        case "Pomodoro":
+        case "Pomodoro Technique":
+            let isLongBreak = (pomodoroCount >= 4)
             return (
-                "Pause and Power Up",
-                "You’ve earned it!\nStretch, walk around, or grab a drink."
+                isLongBreak ? "Time for a Long Break!" : "Quick Break Time!",
+                isLongBreak ? 
+                    "Great work on completing 4 sessions!\nTake 30 minutes to recharge completely." :
+                    "One Pomodoro down! Take 5 minutes to stretch and reset."
             )
         case "Custom":
             return (
@@ -61,17 +114,35 @@ struct BlurView: View {
         }
     }
     
+    private func getSystemWallpaper() -> NSImage? {
+        if let workspace = NSWorkspace.shared.desktopImageURL(for: screen),
+           let image = NSImage(contentsOf: workspace) {
+            return image
+        }
+        return nil
+    }
+    
     var body: some View {
         ZStack {
-            // Dark background with blur
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
-                .opacity(isAppearing ? 1 : 0)
-                .animation(.easeOut(duration: 0.3), value: isAppearing)
+            // System wallpaper
+            if let wallpaperImage = wallpaperImage {
+                Image(nsImage: wallpaperImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
+            }
             
-            // Additional dark overlay for 80% opacity
-            Color.black.opacity(0.6)
-                .opacity(isAppearing ? 1 : 0)
-                .animation(.easeOut(duration: 0.3), value: isAppearing)
+            // Dark background overlay (80% black)
+            Color.black.opacity(0.8)
+                .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
+            
+            // Subtle blur for depth
+            VisualEffectView(
+                material: .hudWindow,
+                blendingMode: .withinWindow
+            )
+            .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
             
             // Content
             VStack(spacing: 40) {
@@ -82,10 +153,6 @@ struct BlurView: View {
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                
-                Divider()
-                    .frame(width: screenWidth * 0.6)  // 60% of screen width
-                    .background(.white.opacity(0.3))
                 
                 // Instructions
                 Text(content.description)
@@ -126,9 +193,7 @@ struct BlurView: View {
                 Spacer().frame(height: 24)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scaleEffect(isAppearing ? 1 : 0.8)
-            .opacity(isAppearing ? 1 : 0)
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isAppearing)
+            .modifier(ContentAnimationModifier(isVisible: isAppearing && !isAnimatingOut))
         }
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
@@ -136,54 +201,49 @@ struct BlurView: View {
             }
         }
         .onAppear {
-            if let duration = getBreakDuration() {
-                timeRemaining = duration
-            }
-            // Trigger animations after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isAppearing = true
+            // Reset state and prepare for animation
+            isAppearing = false
+            wallpaperImage = getSystemWallpaper()
+            
+            // Trigger animation after a brief delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeOut(duration: 0.4)) {
+                    isAppearing = true
+                }
             }
         }
         .onDisappear {
+            // Ensure state is reset when view disappears
             isAppearing = false
-        }
-    }
-    
-    private func getBreakDuration() -> TimeInterval? {
-        switch technique {
-        case "20-20-20":
-            return 20
-        case "Pomodoro":
-            return 300
-        case "Custom":
-            return TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
-        default:
-            return nil
         }
     }
 }
 
-struct VisualEffectView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
+// Custom modifiers for smoother animations
+struct FadeScaleModifier: ViewModifier {
+    let isVisible: Bool
     
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let visualEffectView = NSVisualEffectView()
-        visualEffectView.material = material
-        visualEffectView.blendingMode = blendingMode
-        visualEffectView.state = .active
-        visualEffectView.wantsLayer = true
-        
-        // Force dark appearance
-        if let darkAppearance = NSAppearance(named: .darkAqua) {
-            visualEffectView.appearance = darkAppearance
-        }
-        
-        return visualEffectView
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .animation(.easeOut(duration: 0.4), value: isVisible)
     }
+}
+
+struct ContentAnimationModifier: ViewModifier {
+    let isVisible: Bool
     
-    func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
-        visualEffectView.material = material
-        visualEffectView.blendingMode = blendingMode
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible ? 1 : 0.95)
+            .animation(
+                .spring(
+                    response: 0.4,
+                    dampingFraction: 0.9,
+                    blendDuration: 0.3
+                ),
+                value: isVisible
+            )
     }
 }
