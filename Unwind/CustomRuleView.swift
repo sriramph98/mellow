@@ -22,7 +22,7 @@ struct CustomRuleView: View {
             // Header with close button
             HStack {
                 Text("Modify Custom Rule")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -42,11 +42,11 @@ struct CustomRuleView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Break Interval")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
                         
                         Text("How often should we remind you to take a break?")
-                            .font(.system(size: 13))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundColor(.white.opacity(0.6))
                     }
                     
@@ -62,7 +62,7 @@ struct CustomRuleView: View {
                         .tint(.accentBlue)
                         
                         Text("\(Int(Double(reminderInterval) / 60.0))mins")
-                            .font(.system(size: 24, weight: .medium))
+                            .font(.system(size: 24, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }

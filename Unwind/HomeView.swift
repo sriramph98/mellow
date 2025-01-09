@@ -83,7 +83,7 @@ struct PresetCard: View {
                         .foregroundColor(.white)
                     
                     Text(description)
-                        .font(.system(size: 13, design: .rounded))
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundColor(.white.opacity(0.7))
                         .lineLimit(2)
                 }

@@ -877,4 +877,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             ]
         )
     }
+    
+    func handleBreakComplete() {
+        // Play sound if enabled
+        if UserDefaults.standard.bool(forKey: "playSound") {
+            do {
+                try playBreakSound()
+            } catch {
+                handleError(error)
+            }
+        }
+        
+        // Start the next break interval timer
+        do {
+            nextBreakTime = Date().addingTimeInterval(timeInterval)
+            try startTimer()
+        } catch {
+            handleError(error)
+        }
+    }
 }

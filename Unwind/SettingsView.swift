@@ -12,7 +12,7 @@ struct SettingsView: View {
             // Header with close button
             HStack {
                 Text("Settings")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -101,11 +101,11 @@ struct SettingRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
                 Text(description)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundColor(.white.opacity(0.6))
                     .lineSpacing(2)
             }

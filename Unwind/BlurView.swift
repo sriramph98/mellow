@@ -137,6 +137,19 @@ struct BlurView: View {
         return nil
     }
     
+    private func getBreakTitle(technique: String) -> String {
+        switch technique {
+        case "20-20-20 Rule":
+            return "Time for a Quick Reset!"
+        case "Pomodoro Technique":
+            return "Take a break"
+        case "Custom":
+            return "Break time!"
+        default:
+            return "Take a break"
+        }
+    }
+    
     var body: some View {
         ZStack {
             // System wallpaper with improved animation
@@ -161,14 +174,15 @@ struct BlurView: View {
             .transition(.opacity)
             
             // Content with smoother animation
-            VStack(spacing: 40) {
+            VStack(spacing: 32) {
                 Spacer()
                 
                 // Title
-                Text(content.title)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                Text(getBreakTitle(technique: technique))
+                    .font(.system(size: 48, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
+                    .lineSpacing(8)
                 
                 // Instructions
                 Text(content.description)
@@ -220,6 +234,12 @@ struct BlurView: View {
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
                 timeRemaining -= 1
+            } else {
+                // Break duration is over
+                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                    appDelegate.handleBreakComplete()  // New method to handle break completion
+                }
+                handleSkip()
             }
         }
         .onAppear {
