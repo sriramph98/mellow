@@ -836,11 +836,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Trigger animation for all windows
-            self.isAnimatingOut = true
-            
-            // Dismiss windows after animation completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Wait for animation to complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 // Close all tracked blur windows
                 for window in self.blurWindows {
                     window.orderOut(nil)

@@ -282,6 +282,21 @@ struct HomeView: View {
                             .animation(.smooth(duration: 0.3))
                     )
                 }
+                
+                Button {
+                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                        appDelegate.showBlurScreen(forTechnique: selectedPreset)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Preview")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                }
+                .buttonStyle(PillButtonStyle())
             }
             .padding(.top, 16)
             .animation(.smooth(duration: 0.3), value: isRunning)

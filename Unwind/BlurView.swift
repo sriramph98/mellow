@@ -70,8 +70,23 @@ struct BlurView: View {
     }
     
     private func handleSkip() {
-        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-            appDelegate.skipBreak()
+        // Trigger fade out animation first
+        withAnimation(
+            .spring(
+                response: 0.5,
+                dampingFraction: 0.8,
+                blendDuration: 0
+            )
+        ) {
+            isAnimatingOut = true
+            isAppearing = false
+        }
+        
+        // Delay the actual skip action until animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.skipBreak()
+            }
         }
     }
     
@@ -124,27 +139,28 @@ struct BlurView: View {
     
     var body: some View {
         ZStack {
-            // System wallpaper
+            // System wallpaper with improved animation
             if let wallpaperImage = wallpaperImage {
                 Image(nsImage: wallpaperImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
+                    .transition(.opacity)
             }
             
-            // Dark background overlay (80% black)
-            Color.black.opacity(0.8)
-                .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
+            // Dark background overlay with smoother transition
+            Color.black
+                .opacity(0.8)
+                .transition(.opacity)
             
-            // Subtle blur for depth
+            // Subtle blur with improved animation
             VisualEffectView(
                 material: .hudWindow,
                 blendingMode: .withinWindow
             )
-            .modifier(FadeScaleModifier(isVisible: isAppearing && !isAnimatingOut))
+            .transition(.opacity)
             
-            // Content
+            // Content with smoother animation
             VStack(spacing: 40) {
                 Spacer()
                 
@@ -189,11 +205,17 @@ struct BlurView: View {
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
                 .keyboardShortcut(.escape, modifiers: [])
+                .opacity(isAnimatingOut ? 0 : 1)  // Fade out with content
                 
                 Spacer().frame(height: 24)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .modifier(ContentAnimationModifier(isVisible: isAppearing && !isAnimatingOut))
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 1.02)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                )
+            )
         }
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
@@ -201,32 +223,54 @@ struct BlurView: View {
             }
         }
         .onAppear {
-            // Reset state and prepare for animation
-            isAppearing = false
+            // Preload wallpaper before animation starts
             wallpaperImage = getSystemWallpaper()
             
-            // Trigger animation after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                withAnimation(.easeOut(duration: 0.4)) {
-                    isAppearing = true
-                }
+            // Smoother entrance animation
+            withAnimation(
+                .spring(
+                    response: 0.6,
+                    dampingFraction: 0.8,
+                    blendDuration: 0
+                )
+            ) {
+                isAppearing = true
             }
         }
-        .onDisappear {
-            // Ensure state is reset when view disappears
-            isAppearing = false
+        .opacity(isAppearing ? 1 : 0)
+        .onChange(of: isAnimatingOut) { newValue in
+            if newValue {
+                // Smooth exit animation
+                withAnimation(
+                    .spring(
+                        response: 0.5,
+                        dampingFraction: 0.8,
+                        blendDuration: 0
+                    )
+                ) {
+                    isAppearing = false
+                }
+            }
         }
     }
 }
 
-// Custom modifiers for smoother animations
+// Updated animation modifiers
 struct FadeScaleModifier: ViewModifier {
     let isVisible: Bool
     
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0)
-            .animation(.easeOut(duration: 0.4), value: isVisible)
+            .scaleEffect(isVisible ? 1 : 0.98)
+            .animation(
+                .spring(
+                    response: 0.5,
+                    dampingFraction: 0.8,
+                    blendDuration: 0
+                ),
+                value: isVisible
+            )
     }
 }
 
@@ -236,12 +280,12 @@ struct ContentAnimationModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0)
-            .scaleEffect(isVisible ? 1 : 0.95)
+            .scaleEffect(isVisible ? 1 : 0.98)
             .animation(
                 .spring(
-                    response: 0.4,
-                    dampingFraction: 0.9,
-                    blendDuration: 0.3
+                    response: 0.6,
+                    dampingFraction: 0.8,
+                    blendDuration: 0
                 ),
                 value: isVisible
             )
