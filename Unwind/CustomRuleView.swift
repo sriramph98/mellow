@@ -1,4 +1,58 @@
 import SwiftUI
+import AppKit
+
+struct CustomSlider: NSViewRepresentable {
+    let range: ClosedRange<Double>
+    @Binding var value: Double
+    
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider(value: value, 
+                            minValue: range.lowerBound, 
+                            maxValue: range.upperBound, 
+                            target: context.coordinator, 
+                            action: #selector(Coordinator.valueChanged(_:)))
+        
+        // Force dark appearance
+        if let darkAppearance = NSAppearance(named: .darkAqua) {
+            slider.appearance = darkAppearance
+        }
+        
+        // Configure slider appearance
+        slider.trackFillColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)
+        slider.isEnabled = true
+        slider.isContinuous = true
+        
+        // Set to linear style with tick marks
+        slider.sliderType = .linear
+        slider.controlSize = .regular
+        slider.numberOfTickMarks = 5  // Add tick marks
+        slider.allowsTickMarkValuesOnly = false  // Allow sliding between tick marks
+        slider.tickMarkPosition = .below  // Position tick marks below the slider
+        
+        return slider
+    }
+    
+    func updateNSView(_ nsView: NSSlider, context: Context) {
+        nsView.doubleValue = value
+        nsView.trackFillColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        let slider: CustomSlider
+        
+        init(_ slider: CustomSlider) {
+            self.slider = slider
+        }
+        
+        @objc func valueChanged(_ sender: NSSlider) {
+            slider.value = sender.doubleValue
+        }
+    }
+}
 
 struct CustomRuleView: View {
     @AppStorage("reminderInterval") private var reminderInterval = 1200
@@ -28,7 +82,7 @@ struct CustomRuleView: View {
                 Spacer()
                 
                 Button(action: dismissSettings) {
-                    Image(systemName: "xmark")
+                    Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 24))
                         .foregroundColor(.white.opacity(0.6))
                 }
@@ -51,15 +105,14 @@ struct CustomRuleView: View {
                     }
                     
                     VStack(spacing: 8) {
-                        Slider(
+                        CustomSlider(
+                            range: 1...60,
                             value: Binding(
                                 get: { Double(reminderInterval) / 60.0 },
                                 set: { reminderInterval = Int($0 * 60) }
-                            ),
-                            in: 1...60
+                            )
                         )
-                        .accentColor(.accentBlue)  // Using both tint and accentColor
-                        .tint(.accentBlue)
+                        .frame(height: 20)
                         
                         Text("\(Int(Double(reminderInterval) / 60.0))mins")
                             .font(.system(size: 24, weight: .medium, design: .rounded))
@@ -81,12 +134,11 @@ struct CustomRuleView: View {
                     }
                     
                     VStack(spacing: 8) {
-                        Slider(
-                            value: breakDurationInMinutes,
-                            in: 0.5...10
+                        CustomSlider(
+                            range: 0.5...10,
+                            value: breakDurationInMinutes
                         )
-                        .accentColor(.accentBlue)  // Using both tint and accentColor
-                        .tint(.accentBlue)
+                        .frame(height: 20)
                         
                         Text("\(Int(Double(breakDuration) / 60.0))mins")
                             .font(.system(size: 24, weight: .medium))

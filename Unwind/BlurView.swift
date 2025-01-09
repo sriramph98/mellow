@@ -94,26 +94,46 @@ struct BlurView: View {
         switch technique {
         case "20-20-20 Rule":
             return (
-                "Time for a Quick Reset!",
-                "Look 20 feet away for 20 seconds."
+                "Quick break!",
+                "Look 20 feet away for 20 seconds"
             )
         case "Pomodoro Technique":
-            let isLongBreak = (pomodoroCount >= 4)
-            return (
-                isLongBreak ? "Time for a Long Break!" : "Quick Break Time!",
-                isLongBreak ? 
-                    "Great work on completing 4 sessions!\nTake 30 minutes to recharge completely." :
-                    "One Pomodoro down! Take 5 minutes to stretch and reset."
-            )
+            switch pomodoroCount {
+            case 1:
+                return (
+                    "First break",
+                    "One Pomodoro down! Take 5 minutes to stretch"
+                )
+            case 2:
+                return (
+                    "Second break",
+                    "Halfway there! Take 5 minutes to refresh"
+                )
+            case 3:
+                return (
+                    "Third break",
+                    "Almost there! Take 5 minutes to recharge"
+                )
+            case 4:
+                return (
+                    "Long break time!",
+                    "Excellent work! Take 30 minutes to fully recharge"
+                )
+            default:
+                return (
+                    "Break time",
+                    "Take 5 minutes to reset and refresh"
+                )
+            }
         case "Custom":
             return (
-                "Time for a Break!",
-                "Step away from your screen.\nGive yourself a well-deserved rest."
+                "Break time",
+                "Step away from your screen\nGive yourself a well-deserved rest"
             )
         default:
             return (
-                "Break Time!",
-                "Take a moment to reset."
+                "Break time",
+                "Take a moment to reset"
             )
         }
     }
@@ -135,19 +155,6 @@ struct BlurView: View {
             return image
         }
         return nil
-    }
-    
-    private func getBreakTitle(technique: String) -> String {
-        switch technique {
-        case "20-20-20 Rule":
-            return "Time for a Quick Reset!"
-        case "Pomodoro Technique":
-            return "Take a break"
-        case "Custom":
-            return "Break time!"
-        default:
-            return "Take a break"
-        }
     }
     
     var body: some View {
@@ -178,7 +185,7 @@ struct BlurView: View {
                 Spacer()
                 
                 // Title
-                Text(getBreakTitle(technique: technique))
+                Text(content.title)
                     .font(.system(size: 48, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
