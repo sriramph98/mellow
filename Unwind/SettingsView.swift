@@ -19,11 +19,11 @@ struct SettingsView: View {
                 
                 Button(action: dismissSettings) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 24))
+                        .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
-                .frame(width: 28, height: 28)
+                .frame(width: 32, height: 32)
             }
             
             // Settings List
@@ -67,7 +67,7 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.8))
+                    .fill(Color(red: 0, green: 0, blue: 0).opacity(0.3))
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -95,6 +95,7 @@ struct SettingRow: View {
     let title: String
     let description: String
     @Binding var isEnabled: Bool
+    private let accentColor = Color(red: 0/255, green: 122/255, blue: 255/255)  // #007AFF
     
     var body: some View {
         HStack {
@@ -114,7 +115,8 @@ struct SettingRow: View {
             Toggle("", isOn: $isEnabled)
                 .toggleStyle(.switch)
                 .scaleEffect(0.8)
-                .tint(Color(nsColor: .controlAccentColor))
+                .accentColor(.accentBlue)
+                .tint(.accentBlue)
                 .padding(.leading, 48)
         }
     }

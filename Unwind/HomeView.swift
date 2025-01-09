@@ -68,40 +68,41 @@ struct PresetCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 16) {
-                VStack(spacing: 16) {
-                    Image(systemName: isSelected ? sfSymbol.selected : sfSymbol.normal)
-                        .font(.system(size: 48))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(isSelected ? Color.accentColor : .white)
-                        .opacity(isSelected ? 1 : 0.9)
-                        .scaleEffect(isSelected ? 1.1 : 1.0)
-                        .animation(.smooth(duration: 0.2), value: isSelected)
-                    
+            HStack(spacing: 24) {
+                // Icon
+                Image(systemName: isSelected ? sfSymbol.selected : sfSymbol.normal)
+                    .font(.system(size: 32))  // Slightly smaller for horizontal layout
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isSelected ? Color.accentColor : .white)
+                    .opacity(isSelected ? 1 : 0.9)
+                    .frame(width: 40)
+                
+                VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                     
                     Text(description)
-                        .font(.system(size: 12, design: .rounded))
+                        .font(.system(size: 13, design: .rounded))
                         .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 8)
-                    
-                    Spacer()
+                        .lineLimit(2)
                 }
                 
+                Spacer()
+                
                 if isCustom {
-                    Button("Modify") {
-                        onModify?()
+                    Button(action: { onModify?() }) {
+                        Image(systemName: "gearshape.circle.fill")
+                            .font(.system(size: 18))  // Slightly larger for better visibility
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)  // Reduced horizontal padding
+                            .padding(.vertical, 6)    // Reduced vertical padding
                     }
-                    .buttonStyle(PillButtonStyle())
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .buttonStyle(PillButtonStyle(minWidth: 0))  // Remove minimum width
+                    .frame(height: 30)  // Fixed height for consistency
                 }
             }
-            .frame(width: 200, height: 260)
-            .padding()
+            .padding(24)
             .background {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(cardStyle.background.opacity(cardStyle.opacity))
@@ -113,40 +114,12 @@ struct PresetCard: View {
                         }
                     }
             }
-            .opacity(isDisabled ? 0.4 : 1.0)
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-            .animation(.smooth(duration: 0.3).delay(0.05), value: isSelected)
-            .animation(.smooth(duration: 0.2), value: isHovering)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
-        .onHover { hovering in
-            guard !isDisabled else { return }
-            withAnimation(.smooth(duration: 0.2)) {
-                isHovering = hovering
-            }
-        }
-    }
-}
-
-struct PillButtonStyle: ButtonStyle {
-    @State private var isHovering = false
-    
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            configuration.label
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(minWidth: 135, alignment: .center)
-        .background(isHovering ? .black.opacity(0.3) : .white.opacity(0.14))
-        .animation(.smooth(duration: 0.2), value: isHovering)
-        .cornerRadius(999)
-        .onHover { hovering in
-            withAnimation {
-                isHovering = hovering
-            }
-        }
+        .opacity(isDisabled ? 0.4 : 1.0)
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.smooth(duration: 0.3).delay(0.05), value: isSelected)
     }
 }
 
@@ -183,11 +156,11 @@ struct HomeView: View {
             }
             .padding(.top, 24)
             
-            HStack(spacing: 24) {
+            VStack(spacing: 16) {
                 PresetCard(
                     title: "20-20-20 Rule",
                     isSelected: selectedPreset == "20-20-20 Rule",
-                    description: "Every 20 minutes, look 20 feet away for 20 seconds.",
+                    description: "Every 20 minutes, look 20 feet away for 20 seconds",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "20-20-20 Rule"
@@ -201,7 +174,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Pomodoro Technique",
                     isSelected: selectedPreset == "Pomodoro Technique",
-                    description: "Work in focused 25-minute sessions.",
+                    description: "Work in focused 25-minute sessions",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Pomodoro Technique"
@@ -215,7 +188,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Custom",
                     isSelected: selectedPreset == "Custom",
-                    description: "Customize to match your workflow and stay productive on your terms.",
+                    description: "Customize to match your workflow and stay productive on your terms",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Custom"
@@ -234,34 +207,59 @@ struct HomeView: View {
             .padding(.horizontal, 32)
             
             HStack(spacing: 16) {
-                Button {
-                    isRunning.toggle()
-                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                        if isRunning {
-                            appDelegate.startSelectedTechnique(technique: selectedPreset)
-                        } else {
-                            appDelegate.stopTimer()
+                // Left group of buttons
+                HStack(spacing: 24) {  // Increased spacing to 24
+                    // Start/Stop button
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isRunning.toggle()
                         }
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            if isRunning {
+                                appDelegate.startSelectedTechnique(technique: selectedPreset)
+                            } else {
+                                appDelegate.stopTimer()
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isRunning {
+                                Image(systemName: "stop.fill")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text(timerState.timeString)
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                                    .monospacedDigit()
+                            } else {
+                                Text("Start")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                            }
+                        }
+                        .foregroundColor(.white)
                     }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isRunning {
-                            Image(systemName: "stop.fill")
+                    .buttonStyle(PillButtonStyle(
+                        minWidth: 135,
+                        customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.4) : nil
+                    ))
+                    .frame(width: 135, alignment: isRunning ? .trailing : .center)
+                    
+                    // Preview button
+                    Button {
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            appDelegate.showBlurScreen(forTechnique: selectedPreset)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "eye")
                                 .font(.system(size: 12, weight: .medium))
-                            Text(timerState.timeString)
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .monospacedDigit()
-                        } else {
-                            Text("Start")
+                            Text("Preview")
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
                         }
+                        .foregroundColor(.white)
                     }
-                    .foregroundColor(.white)
+                    .buttonStyle(PillButtonStyle())
                 }
-                .buttonStyle(PillButtonStyle())
-                .frame(width: 135, alignment: isRunning ? .trailing : .center)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isRunning)
                 
+                // Reset button appears between the buttons when running
                 if isRunning {
                     Button {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
@@ -278,28 +276,27 @@ struct HomeView: View {
                     }
                     .buttonStyle(PillButtonStyle())
                     .transition(
-                        AnyTransition.scale.combined(with: .opacity)
-                            .animation(.smooth(duration: 0.3))
+                        .asymmetric(
+                            insertion: .scale(scale: 0.8)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(x: -20)),
+                            removal: .scale(scale: 0.8)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(x: -20))
+                        )
                     )
                 }
-                
-                Button {
-                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                        appDelegate.showBlurScreen(forTechnique: selectedPreset)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "eye")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("Preview")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                    }
-                    .foregroundColor(.white)
-                }
-                .buttonStyle(PillButtonStyle())
             }
             .padding(.top, 16)
-            .animation(.smooth(duration: 0.3), value: isRunning)
+            .padding(.horizontal, 32)
+            .animation(
+                .spring(
+                    response: 0.4,
+                    dampingFraction: 0.8,
+                    blendDuration: 0
+                ),
+                value: isRunning
+            )
             
             VStack(spacing: 8) {
                 HStack(spacing: 6) {
@@ -318,7 +315,7 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .padding(.vertical, 24)
-        .frame(idealWidth: 800)
+        .frame(width: 800)
         .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -101,33 +101,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appMenu = NSMenu()
         let appMenuItem = NSMenuItem()
         
-        // Application Menu
+        // Application Menu (main menu bar)
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
         
         let appName = ProcessInfo.processInfo.processName
         
-        // Configure About menu item with custom handler
-        let aboutMenuItem = NSMenuItem(
-            title: "About \(appName)",
-            action: #selector(showAboutPanel),
-            keyEquivalent: ""
-        )
-        appMenu.addItem(aboutMenuItem)
+        // About menu item
+        appMenu.addItem(NSMenuItem(title: "About \(appName)", action: #selector(showAboutPanel), keyEquivalent: ""))
         
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(NSMenuItem(title: "Show", action: #selector(showHomeScreen), keyEquivalent: "s"))
+        
+        // Open Unwind menu item
+        appMenu.addItem(NSMenuItem(title: "Open Unwind", action: #selector(showHomeScreen), keyEquivalent: "o"))
+        
+        // Settings menu item
         appMenu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
-        appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(NSMenuItem(title: "Hide \(appName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
         
-        // Fix the Hide Others menu item
-        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
-        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
-        appMenu.addItem(hideOthersItem)
-        
-        appMenu.addItem(NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: ""))
         appMenu.addItem(NSMenuItem.separator())
+        
+        // Quit menu item
         appMenu.addItem(NSMenuItem(title: "Quit \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         
         NSApp.mainMenu = mainMenu
@@ -230,26 +223,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let button = statusItem?.button {
+            // Configure menu bar icon
             if let menuBarIcon = NSImage(named: "menuBarIcon") {
-                // Configure for appearance modes
-                menuBarIcon.isTemplate = true  // Ensures proper light/dark mode adaptation
+                menuBarIcon.isTemplate = true
                 menuBarIcon.size = NSSize(width: 18, height: 18)
-                
-                // Set up button with proper scaling
                 button.image = menuBarIcon
                 button.imagePosition = .imageLeft
                 button.imageScaling = .scaleProportionallyDown
-                
-                // Support dynamic appearance changes
-                button.appearance = NSAppearance(named: .darkAqua)
             }
             
-            button.title = ""
+            // Set up click action
             button.target = self
-            button.action = #selector(showHomeScreen)
+            button.action = #selector(menuBarButtonClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         
         updateMenuBarTitle()
+    }
+    
+    @objc private func menuBarButtonClicked() {
+        guard let button = statusItem?.button else { return }
+        
+        let menu = NSMenu()
+        
+        // Break control only
+        menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: ""))
+        
+        // Show menu
+        statusItem?.menu = menu
+        button.performClick(nil)
+        statusItem?.menu = nil  // Clear menu after showing
     }
     
     private func updateMenuBarTitle() {

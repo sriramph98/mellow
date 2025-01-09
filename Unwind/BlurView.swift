@@ -238,7 +238,7 @@ struct BlurView: View {
             }
         }
         .opacity(isAppearing ? 1 : 0)
-        .onChange(of: isAnimatingOut) { newValue in
+        .onChange(of: isAnimatingOut) { oldValue, newValue in
             if newValue {
                 // Smooth exit animation
                 withAnimation(
