@@ -192,6 +192,9 @@ struct HomeView: View {
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Custom"
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                onTimeIntervalChange(appDelegate.customInterval)
+                            }
                         }
                     },
                     isCustom: true,

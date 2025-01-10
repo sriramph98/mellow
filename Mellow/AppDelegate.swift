@@ -72,6 +72,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsOverlayWindow: NSWindow?
     private var settingsBlurView: NSView?
     private var customRuleOverlayView: NSView?
+    @AppStorage("customInterval") var customInterval: TimeInterval = 1200 // Default 20 minutes
+    @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -648,29 +650,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let homeWindow = homeWindow {
             let customRuleView = CustomRuleView(
                 onSave: { [weak self] newValue in
-                    self?.timeInterval = newValue  // Just update the time interval
+                    self?.customInterval = newValue
+                    self?.isCustomRuleConfigured = true
+                    self?.timeInterval = newValue
+                    UserDefaults.standard.set(newValue, forKey: "breakInterval")
                     self?.closeCustomRuleSettings()
                 },
                 onClose: { [weak self] in
-                    self?.closeCustomRuleSettings()  // Just close
+                    self?.closeCustomRuleSettings()
                 }
             )
             .environment(\.colorScheme, .dark)
             
             let hostingView = NSHostingView(rootView: customRuleView)
-            hostingView.setFrameSize(hostingView.fittingSize)  // Size to fit content
+            hostingView.setFrameSize(hostingView.fittingSize)
             
             let overlayWindow = NSWindow(
-                contentRect: hostingView.frame,  // Use hosting view's size
+                contentRect: hostingView.frame,
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false
             )
             
-            overlayWindow.backgroundColor = .clear
+            overlayWindow.backgroundColor = NSColor.clear
             overlayWindow.isOpaque = false
             overlayWindow.hasShadow = true
-            overlayWindow.level = .floating
+            overlayWindow.level = NSWindow.Level.floating
             
             overlayWindow.contentView = hostingView
             if let contentView = overlayWindow.contentView {
@@ -739,15 +744,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 timeInterval = 1500  // 25 minutes
                 pomodoroCount += 1
             case "Custom":
-                let reminderInterval = UserDefaults.standard.integer(forKey: "reminderInterval")
-                let breakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
-                
-                guard reminderInterval > 0 && breakDuration > 0 else {
-                    throw MellowError.customRuleNotConfigured
-                }
-                
-                timeInterval = TimeInterval(reminderInterval)
-                shortBreakDuration = TimeInterval(breakDuration)
+                // Always use the customInterval value
+                timeInterval = customInterval
+                print("Starting custom technique with interval: \(customInterval)")  // Debug print
             default:
                 if let lastInterval = lastUsedInterval,
                    let lastBreakDuration = lastUsedBreakDuration {
