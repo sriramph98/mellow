@@ -16,10 +16,10 @@
 		};
 		8064A5DA2D2EC80B002848B7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-				containerPortal = 8064A5B62D2EC808002848B7 /* Project object */;
-				proxyType = 1;
-				remoteGlobalIDString = 8064A5BD2D2EC808002848B7;
-				remoteInfo = Mellow;
+			containerPortal = 8064A5B62D2EC808002848B7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8064A5BD2D2EC808002848B7;
+			remoteInfo = Mellow;
 		};
 /* End PBXContainerItemProxy section */
 

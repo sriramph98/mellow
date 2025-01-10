@@ -242,20 +242,21 @@ struct HomeView: View {
                 ))
                 .frame(width: 135, alignment: isRunning ? .trailing : .center)
                 
-                Button(action: {
-                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                        appDelegate.showBlurScreen(forTechnique: selectedPreset)
-                    }
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "eye")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("Preview")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                    }
-                    .foregroundColor(.white)
-                }
-                .buttonStyle(PillButtonStyle())
+                // Remove or comment out the Preview button
+                // Button(action: {
+                //     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                //         appDelegate.showBlurScreen(forTechnique: selectedPreset)
+                //     }
+                // }) {
+                //     HStack(spacing: 6) {
+                //         Image(systemName: "eye")
+                //             .font(.system(size: 12, weight: .medium))
+                //         Text("Preview")
+                //             .font(.system(size: 16, weight: .medium, design: .rounded))
+                //     }
+                //     .foregroundColor(.white)
+                // }
+                // .buttonStyle(PillButtonStyle())
                 
                 if isRunning {
                     Button(action: {

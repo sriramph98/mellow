@@ -2,8 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("playSound") private var playSound = true
-    @AppStorage("showNotifications") private var showNotifications = true
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
     let onClose: () -> Void
     @State private var isAppearing = false
     
@@ -33,26 +31,6 @@ struct SettingsView: View {
                     title: "Enable Sound",
                     description: "Play sounds to signal the start and end of breaks.",
                     isEnabled: $playSound
-                )
-                
-                Divider()
-                    .background(Color.white.opacity(0.1))
-                
-                // Launch Setting
-                SettingRow(
-                    title: "Open on system login",
-                    description: "Launch Mellow automatically when you log in.",
-                    isEnabled: $launchAtLogin
-                )
-                
-                Divider()
-                    .background(Color.white.opacity(0.1))
-                
-                // Notification Setting
-                SettingRow(
-                    title: "Show notification",
-                    description: "Display reminders as system notifications.",
-                    isEnabled: $showNotifications
                 )
             }
             

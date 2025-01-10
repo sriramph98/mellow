@@ -1,13 +1,11 @@
 import Cocoa
 import SwiftUI
-import UserNotifications
 
 enum MellowError: LocalizedError {
     case windowCreationFailed
     case soundInitializationFailed
     case timerInitializationFailed
     case invalidTechnique
-    case notificationPermissionDenied
     case customRuleNotConfigured
     
     var errorDescription: String? {
@@ -20,8 +18,6 @@ enum MellowError: LocalizedError {
             return "Failed to start timer"
         case .invalidTechnique:
             return "Invalid break technique"
-        case .notificationPermissionDenied:
-            return "Notification permission denied"
         case .customRuleNotConfigured:
             return "Custom rule not configured"
         }
@@ -88,7 +84,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Create the SwiftUI window first
         createAndShowHomeWindow()
         
-        setupNotifications()
         setupMenuBar()
         
         // Ensure app is active and window is front
@@ -206,19 +201,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         homeWindow?.center()
         homeWindow?.isReleasedWhenClosed = false
         homeWindow?.delegate = self
-    }
-    
-    private func setupNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error = error {
-                self.handleError(error)
-                return
-            }
-            
-            if !granted {
-                self.handleError(MellowError.notificationPermissionDenied)
-            }
-        }
     }
     
     private func setupMenuBar() {
@@ -413,10 +395,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try playBreakSound()
             }
             
-            if UserDefaults.standard.bool(forKey: "showNotifications") {
-                try showBreakNotification()
-            }
-            
         } catch {
             handleError(error)
         }
@@ -449,25 +427,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             breakSound = sound
         }
         breakSound?.play()
-    }
-    
-    private func showBreakNotification() throws {
-        let content = UNMutableNotificationContent()
-        content.title = "Time for a Break"
-        content.body = "Take a minute to relax and rest your eyes"
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: "com.yourdomain.mellow.break",
-            content: content,
-            trigger: nil
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                self.handleError(error)
-            }
-        }
     }
     
     private func getDismissalDuration(for technique: String) throws -> TimeInterval {

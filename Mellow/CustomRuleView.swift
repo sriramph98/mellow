@@ -75,7 +75,7 @@ struct CustomRuleView: View {
         VStack(alignment: .leading, spacing: 32) {
             // Header with close button
             HStack {
-                Text("Modify Custom Rule")
+                Text("Custom Rule")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
