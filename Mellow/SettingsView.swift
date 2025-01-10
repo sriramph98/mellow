@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("playSound") private var playSound = true
+    @State private var launchAtLogin = false
     let onClose: () -> Void
     @State private var isAppearing = false
     
@@ -9,7 +10,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 24) {
             // Header with close button
             HStack {
-                Text("Mellow Settings")
+                Text("Settings")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -26,6 +27,16 @@ struct SettingsView: View {
             
             // Settings List
             VStack(alignment: .leading, spacing: 24) {
+                // Launch Setting
+                SettingRow(
+                    title: "Open at login",
+                    description: "Launch Mellow automatically when you log in.",
+                    isEnabled: $launchAtLogin
+                )
+                
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                
                 // Sound Setting
                 SettingRow(
                     title: "Enable Sound",
@@ -55,6 +66,10 @@ struct SettingsView: View {
             withAnimation(.easeOut(duration: 0.2)) {
                 isAppearing = true
             }
+            launchAtLogin = getLaunchAtLoginStatus()
+        }
+        .onChange(of: launchAtLogin) { oldValue, newValue in
+            setLaunchAtLogin(newValue)
         }
     }
     
@@ -66,6 +81,14 @@ struct SettingsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onClose()
         }
+    }
+    
+    private func getLaunchAtLoginStatus() -> Bool {
+        return LaunchAtLogin.isEnabled()
+    }
+    
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        LaunchAtLogin.setEnabled(enabled)
     }
 }
 
@@ -93,9 +116,9 @@ struct SettingRow: View {
             Toggle("", isOn: $isEnabled)
                 .toggleStyle(.switch)
                 .scaleEffect(0.8)
-                .accentColor(.accentBlue)
-                .tint(.accentBlue)
+                .accentColor(accentColor)
                 .padding(.leading, 48)
+                .environment(\.colorScheme, .dark)
         }
     }
 }

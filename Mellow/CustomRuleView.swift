@@ -4,6 +4,7 @@ import AppKit
 struct CustomSlider: NSViewRepresentable {
     let range: ClosedRange<Double>
     @Binding var value: Double
+    private let accentColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)  // #007AFF
     
     func makeNSView(context: Context) -> NSSlider {
         let slider = NSSlider(value: value, 
@@ -13,28 +14,30 @@ struct CustomSlider: NSViewRepresentable {
                             action: #selector(Coordinator.valueChanged(_:)))
         
         // Force dark appearance
-        if let darkAppearance = NSAppearance(named: .darkAqua) {
-            slider.appearance = darkAppearance
-        }
+        slider.appearance = NSAppearance(named: .darkAqua)
         
         // Configure slider appearance
-        slider.trackFillColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)
+        slider.trackFillColor = accentColor
         slider.isEnabled = true
         slider.isContinuous = true
         
         // Set to linear style with tick marks
         slider.sliderType = .linear
         slider.controlSize = .regular
-        slider.numberOfTickMarks = 5  // Add tick marks
-        slider.allowsTickMarkValuesOnly = false  // Allow sliding between tick marks
-        slider.tickMarkPosition = .below  // Position tick marks below the slider
+        slider.numberOfTickMarks = 5
+        slider.allowsTickMarkValuesOnly = false
+        slider.tickMarkPosition = .below
+        
+        // Ensure the slider is properly layered
+        slider.wantsLayer = true
+        slider.layer?.zPosition = 1
         
         return slider
     }
     
     func updateNSView(_ nsView: NSSlider, context: Context) {
         nsView.doubleValue = value
-        nsView.trackFillColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)
+        nsView.trackFillColor = accentColor
     }
     
     func makeCoordinator() -> Coordinator {
@@ -114,7 +117,10 @@ struct CustomRuleView: View {
                         )
                         .frame(height: 20)
                         
-                        Text("\(Int(Double(reminderInterval) / 60.0))mins")
+                        Text(String(format: "%02dm %02ds", 
+                             Int(reminderInterval) / 60,  // Minutes
+                             Int(reminderInterval) % 60   // Seconds
+                        ))
                             .font(.system(size: 24, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -140,7 +146,10 @@ struct CustomRuleView: View {
                         )
                         .frame(height: 20)
                         
-                        Text("\(Int(Double(breakDuration) / 60.0))mins")
+                        Text(String(format: "%02dm %02ds", 
+                             Int(breakDuration) / 60,     // Minutes
+                             Int(breakDuration) % 60      // Seconds
+                        ))
                             .font(.system(size: 24, weight: .medium))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .center)

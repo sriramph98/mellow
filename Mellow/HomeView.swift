@@ -90,7 +90,7 @@ struct PresetCard: View {
                 
                 Spacer()
                 
-                if isCustom {
+                if isCustom && isSelected {
                     Button(action: { onModify?() }) {
                         Image(systemName: "gearshape.circle.fill")
                             .font(.system(size: 18))  // Slightly larger for better visibility
@@ -142,25 +142,25 @@ struct HomeView: View {
     }
     
     var body: some View {
-        VStack(spacing: 32) {
-            VStack(spacing: 16) {
-                Image("MellowLogo")
+        VStack(spacing: 24) {
+            // App Header
+            HStack(spacing: 12) {
+                Image("MellowLogo")  // Make sure this asset exists
                     .resizable()
-                    .interpolation(.high)
-                    .antialiased(true)
-                    .frame(width: 80, height: 80)
+                    .frame(width: 32, height: 32)
                 
                 Text("Mellow")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
             }
-            .padding(.top, 24)
+            .frame(maxWidth: .infinity, alignment: .center)
             
-            VStack(spacing: 16) {
+            // Preset Cards with 16px spacing
+            VStack(spacing: 16) {  // Changed from 32 to 16
                 PresetCard(
                     title: "20-20-20 Rule",
                     isSelected: selectedPreset == "20-20-20 Rule",
-                    description: "Every 20 minutes, look 20 feet away for 20 seconds",
+                    description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "20-20-20 Rule"
@@ -174,7 +174,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Pomodoro Technique",
                     isSelected: selectedPreset == "Pomodoro Technique",
-                    description: "Work in focused 25-minute sessions",
+                    description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Pomodoro Technique"
@@ -188,7 +188,7 @@ struct HomeView: View {
                 PresetCard(
                     title: "Custom",
                     isSelected: selectedPreset == "Custom",
-                    description: "Customize to match your workflow and stay productive on your terms",
+                    description: "Set your own break intervals and durations to match your workflow.",
                     action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             selectedPreset = "Custom"
@@ -207,7 +207,7 @@ struct HomeView: View {
                     namespace: animation
                 )
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 24)
             
             HStack(spacing: 16) {
                 Button(action: {
@@ -224,7 +224,7 @@ struct HomeView: View {
                 }) {
                     HStack(spacing: 8) {
                         if isRunning {
-                            Image(systemName: "stop.fill")
+                            Image(systemName: "stop.circle.fill")
                                 .font(.system(size: 12, weight: .medium))
                             Text(timerState.timeString)
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
@@ -296,20 +296,41 @@ struct HomeView: View {
                 value: isRunning
             )
             
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "menubar.arrow.up.rectangle")
-                        .font(.system(size: 14))
-                    Text("Mellow lives in your menu bar")
-                }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()  // Add spacer at start
                 
-                Text("Click the icon in the menu bar to access Mellow anytime")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary.opacity(0.8))
+                // Center - Menu bar info
+                VStack(alignment: .center, spacing: 4) {  // Changed to center alignment
+                    HStack {
+                        Image(systemName: "menubar.dock.rectangle")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.6))
+                        
+                        Text("Mellow lives in your menu bar")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    
+                    Text("Click the icon in the menu bar to access Mellow anytime")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.4))
+                        .multilineTextAlignment(.center)  // Center align multi-line text
+                }
+                
+                Spacer()  // Keep this spacer
+                
+                // Right side - Settings icon
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 17))
+                    .foregroundColor(.white.opacity(0.6))
+                    .onTapGesture {
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            appDelegate.showSettings()
+                        }
+                    }
             }
-            .padding(.top, 24)
+            .padding(.horizontal, 24)
+            .padding(.top, 32)
             .padding(.bottom, 24)
         }
         .padding(.vertical, 24)

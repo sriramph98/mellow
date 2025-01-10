@@ -74,53 +74,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         
-        setupMainMenu()
+        // Remove/comment any notification permission requests here
+        // UNUserNotificationCenter.current().requestAuthorization...
         
-        // Set default interval if not set
+        setupMinimalMainMenu()
+        
         if UserDefaults.standard.double(forKey: "breakInterval") == 0 {
             UserDefaults.standard.set(1200, forKey: "breakInterval")
         }
         
-        // Create the SwiftUI window first
         createAndShowHomeWindow()
-        
         setupMenuBar()
         
-        // Ensure app is active and window is front
         DispatchQueue.main.async { [weak self] in
-        NSApplication.shared.activate(ignoringOtherApps: true)
+            NSApplication.shared.activate(ignoringOtherApps: true)
             self?.homeWindow?.makeKeyAndOrderFront(nil)
         }
     }
     
-    private func setupMainMenu() {
+    private func setupMinimalMainMenu() {
         let mainMenu = NSMenu()
+        
+        // Application Menu (Mellow)
         let appMenu = NSMenu()
         let appMenuItem = NSMenuItem()
-        
-        // Application Menu (main menu bar)
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
         
-        let appName = "Mellow"
-        
-        // About menu item
-        appMenu.addItem(NSMenuItem(title: "About \(appName)", action: #selector(showAboutPanel), keyEquivalent: ""))
-        
+        // About Mellow
+        appMenu.addItem(NSMenuItem(title: "About Mellow", action: #selector(showAboutPanel), keyEquivalent: ""))
         appMenu.addItem(NSMenuItem.separator())
         
-        // Open Mellow menu item
+        // Main actions
         appMenu.addItem(NSMenuItem(title: "Open Mellow", action: #selector(showHomeScreen), keyEquivalent: "o"))
-        
-        // Settings menu item
         appMenu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
-        
         appMenu.addItem(NSMenuItem.separator())
         
-        // Quit menu item
-        appMenu.addItem(NSMenuItem(title: "Quit \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        // Share Feedback
+        appMenu.addItem(NSMenuItem(title: "Share Feedback", action: #selector(shareFeedback), keyEquivalent: ""))
+        appMenu.addItem(NSMenuItem.separator())
+        
+        // Quit
+        appMenu.addItem(NSMenuItem(title: "Quit Mellow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         
         NSApp.mainMenu = mainMenu
+    }
+    
+    @objc private func shareFeedback() {
+        NSWorkspace.shared.open(URL(string: "https://docs.google.com/forms/d/e/1FAIpQLSfQ1g2pwtErgAGpbmlxqJpPM7Yc0nDmAERLyBZzZHn3zSHQVw/viewform?usp=sharing")!)
     }
     
     private func createAndShowHomeWindow() {
@@ -170,17 +171,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // Create visual effect view with proper materials
         let visualEffect = NSVisualEffectView(frame: containerView.bounds)
-        visualEffect.material = .hudWindow
-        visualEffect.blendingMode = .behindWindow
+        visualEffect.material = .fullScreenUI
+        visualEffect.blendingMode = .withinWindow
         visualEffect.state = .active
         visualEffect.wantsLayer = true
-        visualEffect.appearance = NSAppearance(named: .darkAqua)  // Force dark appearance
+        visualEffect.appearance = NSAppearance(named: .darkAqua)
         
         // Configure background for both modes
         visualEffect.autoresizingMask = [.width, .height]
         if let layer = visualEffect.layer {
-            layer.backgroundColor = NSColor.black.withAlphaComponent(0.8).cgColor
+            layer.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
         }
+        
+        // Add a second visual effect for additional blur if needed
+        let secondaryBlur = NSVisualEffectView(frame: containerView.bounds)
+        secondaryBlur.material = .hudWindow
+        secondaryBlur.blendingMode = .withinWindow
+        secondaryBlur.state = .active
+        secondaryBlur.autoresizingMask = [.width, .height]
+        visualEffect.addSubview(secondaryBlur)
         
         containerView.addSubview(visualEffect)
         
@@ -230,8 +239,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         let menu = NSMenu()
         
-        // Break control only
-        menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: ""))
+        // Primary actions
+        menu.addItem(NSMenuItem(title: "Open Mellow", action: #selector(showHomeScreen), keyEquivalent: ""))
+        
+        // Timer-dependent action
+        if timer != nil {
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: ""))
+        }
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Settings and About
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "About Mellow", action: #selector(showAboutPanel), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Share Feedback", action: #selector(shareFeedback), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        
+        // Quit
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         
         // Show menu
         statusItem?.menu = menu
@@ -247,17 +274,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let minutes = Int(timeRemaining) / 60
                     let seconds = Int(timeRemaining) % 60
                     
-                    // Show seconds when under a minute
+                    // Show only seconds if less than 1 minute
                     if minutes == 0 {
                         timerState.timeString = String(format: "%ds", seconds)
-                        button.title = " \(seconds)s"
+                        button.title = String(format: " %ds", seconds)
                     } else {
                         timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                        button.title = " \(minutes)m"
+                        button.title = String(format: " %d:%02d", minutes, seconds)
                     }
                 } else {
-                    timerState.timeString = "0:00"
-                    button.title = " 0s"
+                    timerState.timeString = "0"
+                    button.title = " 0"
                 }
             } else {
                 timerState.timeString = ""
@@ -305,22 +332,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let minutes = Int(timeRemaining) / 60
                     let seconds = Int(timeRemaining) % 60
                     
-                    // Show seconds when under a minute
+                    // Show only seconds if less than 1 minute
                     if minutes == 0 {
-                        self.updateTimeString(String(format: "%ds", seconds))
+                        self.timerState.timeString = String(format: "%ds", seconds)
                         if let button = self.statusItem?.button {
-                            button.title = " \(seconds)s"
+                            button.title = String(format: " %ds", seconds)
                         }
                     } else {
-                        self.updateTimeString(String(format: "%d:%02d", minutes, seconds))
+                        self.timerState.timeString = String(format: "%d:%02d", minutes, seconds)
                         if let button = self.statusItem?.button {
-                            button.title = " \(minutes)m"
+                            button.title = String(format: " %d:%02d", minutes, seconds)
                         }
                     }
                 } else {
-                    self.updateTimeString("0s")
+                    self.timerState.timeString = "0"
                     if let button = self.statusItem?.button {
-                        button.title = " 0s"
+                        button.title = " 0"
                     }
                     
                     self.showBlurScreen(forTechnique: self.currentTechnique)
@@ -329,16 +356,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         
-        // Set initial value
+        // Set initial value in MM:SS format
         let initialMinutes = Int(timeInterval) / 60
         let initialSeconds = Int(timeInterval) % 60
-        if initialMinutes == 0 {
-            updateTimeString(String(format: "%ds", initialSeconds))
-        } else {
-            updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
-        }
+        updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
         
         RunLoop.main.add(timer!, forMode: .common)
+        updateMainMenu()
     }
     
     @objc private func showHomeScreen() {
@@ -367,7 +391,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             isAnimatingOut = false
             blurWindows.removeAll()
             
-            // Create blur windows without starting timer
+            // Remove any notification scheduling here
+            // UNUserNotificationCenter.current().add...
+            
+            // Create blur windows without notifications
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
                 
@@ -744,6 +771,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         nextBreakTime = nil
         breakSound?.stop()
         updateMenuBarTitle()
+        updateMainMenu()
     }
     
     // Add this method to handle window closing
@@ -820,6 +848,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc private func showAboutPanel() {
+        // Store current status item
+        let currentStatusItem = statusItem
+        
+        // Switch to regular activation policy
+        NSApp.setActivationPolicy(.regular)
+        
+        // Activate the app
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Show the about panel
         NSApplication.shared.orderFrontStandardAboutPanel(
             options: [
                 .applicationIcon: NSImage(named: "MellowLogo") ?? NSImage(),
@@ -834,6 +872,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 )
             ]
         )
+        
+        // Find the about panel and observe its closing
+        if let aboutPanel = NSApp.windows.first(where: { $0.title == "About Mellow" }) {
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: aboutPanel,
+                queue: .main
+            ) { [weak self] _ in
+                // Only revert to accessory mode if home window is not visible
+                if self?.homeWindow?.isVisible != true {
+                    NSApp.setActivationPolicy(.accessory)
+                    // Restore status item and update menu bar
+                    self?.statusItem = currentStatusItem
+                    self?.updateMenuBarTitle()
+                }
+                // Remove the observer
+                NotificationCenter.default.removeObserver(self as Any)
+            }
+        }
     }
     
     func handleBreakComplete() {
@@ -853,5 +910,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } catch {
             handleError(error)
         }
+    }
+    
+    private func updateMainMenu() {
+        if let appMenu = NSApp.mainMenu?.items.first?.submenu {
+            // Find and update the Take Break Now menu item
+            if let breakMenuItem = appMenu.items.first(where: { $0.title == "Take Break Now" }) {
+                breakMenuItem.isEnabled = timer != nil
+            }
+        }
+    }
+    
+    // Add help action methods
+    @objc private func showBreakTechniquesHelp() {
+        // Show help about break techniques
+        NSWorkspace.shared.open(URL(string: "https://github.com/sriramph98/Mellow/wiki/Break-Techniques")!)
+    }
+    
+    @objc private func showMenuBarHelp() {
+        // Show help about menu bar controls
+        NSWorkspace.shared.open(URL(string: "https://github.com/sriramph98/Mellow/wiki/Menu-Bar-Controls")!)
+    }
+    
+    @objc private func showSettingsHelp() {
+        // Show help about settings
+        NSWorkspace.shared.open(URL(string: "https://github.com/sriramph98/Mellow/wiki/Settings-Guide")!)
     }
 }
