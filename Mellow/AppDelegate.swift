@@ -2,7 +2,7 @@ import Cocoa
 import SwiftUI
 import UserNotifications
 
-enum UnwindError: LocalizedError {
+enum MellowError: LocalizedError {
     case windowCreationFailed
     case soundInitializationFailed
     case timerInitializationFailed
@@ -105,15 +105,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
         
-        let appName = ProcessInfo.processInfo.processName
+        let appName = "Mellow"
         
         // About menu item
         appMenu.addItem(NSMenuItem(title: "About \(appName)", action: #selector(showAboutPanel), keyEquivalent: ""))
         
         appMenu.addItem(NSMenuItem.separator())
         
-        // Open Unwind menu item
-        appMenu.addItem(NSMenuItem(title: "Open Unwind", action: #selector(showHomeScreen), keyEquivalent: "o"))
+        // Open Mellow menu item
+        appMenu.addItem(NSMenuItem(title: "Open Mellow", action: #selector(showHomeScreen), keyEquivalent: "o"))
         
         // Settings menu item
         appMenu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
@@ -214,7 +214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             
             if !granted {
-                self.handleError(UnwindError.notificationPermissionDenied)
+                self.handleError(MellowError.notificationPermissionDenied)
             }
         }
     }
@@ -306,7 +306,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         timer?.invalidate()
         
         guard timeInterval > 0 else {
-            throw UnwindError.timerInitializationFailed
+            throw MellowError.timerInitializationFailed
         }
         
         nextBreakTime = Date().addingTimeInterval(timeInterval)
@@ -442,7 +442,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func playBreakSound() throws {
         if breakSound == nil {
             guard let sound = NSSound(named: "Glass") else {
-                throw UnwindError.soundInitializationFailed
+                throw MellowError.soundInitializationFailed
             }
             breakSound = sound
         }
@@ -456,7 +456,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         content.sound = .default
         
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: "com.yourdomain.mellow.break",
             content: content,
             trigger: nil
         )
@@ -481,10 +481,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return shortBreakDuration
         case "Custom":
             let duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
-            guard duration > 0 else { throw UnwindError.customRuleNotConfigured }
+            guard duration > 0 else { throw MellowError.customRuleNotConfigured }
             return duration
         default:
-            throw UnwindError.invalidTechnique
+            throw MellowError.invalidTechnique
         }
     }
     
@@ -727,7 +727,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func startSelectedTechnique(technique: String) {
         do {
             guard !technique.isEmpty else {
-                throw UnwindError.invalidTechnique
+                throw MellowError.invalidTechnique
             }
             
             currentTechnique = technique
@@ -743,7 +743,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let breakDuration = UserDefaults.standard.integer(forKey: "breakDuration")
                 
                 guard reminderInterval > 0 && breakDuration > 0 else {
-                    throw UnwindError.customRuleNotConfigured
+                    throw MellowError.customRuleNotConfigured
                 }
                 
                 timeInterval = TimeInterval(reminderInterval)
@@ -754,7 +754,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     timeInterval = lastInterval
                     shortBreakDuration = lastBreakDuration
                 } else {
-                    throw UnwindError.invalidTechnique
+                    throw MellowError.invalidTechnique
                 }
             }
             
@@ -864,8 +864,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func showAboutPanel() {
         NSApplication.shared.orderFrontStandardAboutPanel(
             options: [
-                .applicationIcon: NSImage(named: "UnwindLogo") ?? NSImage(),
-                .applicationName: "Unwind",
+                .applicationIcon: NSImage(named: "MellowLogo") ?? NSImage(),
+                .applicationName: "Mellow",
                 .version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
                 .credits: NSAttributedString(
                     string: "A mindful break reminder for your productivity.",

@@ -11,7 +11,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 24) {
             // Header with close button
             HStack {
-                Text("Settings")
+                Text("Mellow Settings")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -41,7 +41,7 @@ struct SettingsView: View {
                 // Launch Setting
                 SettingRow(
                     title: "Open on system login",
-                    description: "Launch Unwind automatically when you log in.",
+                    description: "Launch Mellow automatically when you log in.",
                     isEnabled: $launchAtLogin
                 )
                 

@@ -144,13 +144,13 @@ struct HomeView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(spacing: 16) {
-                Image("UnwindLogo")
+                Image("MellowLogo")
                     .resizable()
                     .interpolation(.high)
                     .antialiased(true)
                     .frame(width: 80, height: 80)
                 
-                Text("Unwind")
+                Text("Mellow")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
             }
@@ -207,65 +207,59 @@ struct HomeView: View {
             .padding(.horizontal, 32)
             
             HStack(spacing: 16) {
-                // Left group of buttons
-                HStack(spacing: 24) {  // Increased spacing to 24
-                    // Start/Stop button
-                    Button {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isRunning.toggle()
-                        }
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            if isRunning {
-                                appDelegate.startSelectedTechnique(technique: selectedPreset)
-                            } else {
-                                appDelegate.stopTimer()
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            if isRunning {
-                                Image(systemName: "stop.fill")
-                                    .font(.system(size: 12, weight: .medium))
-                                Text(timerState.timeString)
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                                    .monospacedDigit()
-                            } else {
-                                Text("Start")
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                            }
-                        }
-                        .foregroundColor(.white)
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        isRunning.toggle()
                     }
-                    .buttonStyle(PillButtonStyle(
-                        minWidth: 135,
-                        customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.4) : nil
-                    ))
-                    .frame(width: 135, alignment: isRunning ? .trailing : .center)
-                    
-                    // Preview button
-                    Button {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showBlurScreen(forTechnique: selectedPreset)
+                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                        if isRunning {
+                            appDelegate.startSelectedTechnique(technique: selectedPreset)
+                        } else {
+                            appDelegate.stopTimer()
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "eye")
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        if isRunning {
+                            Image(systemName: "stop.fill")
                                 .font(.system(size: 12, weight: .medium))
-                            Text("Preview")
+                            Text(timerState.timeString)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .monospacedDigit()
+                        } else {
+                            Text("Start")
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
                         }
-                        .foregroundColor(.white)
                     }
-                    .buttonStyle(PillButtonStyle())
+                    .foregroundColor(.white)
                 }
+                .buttonStyle(PillButtonStyle(
+                    minWidth: 135,
+                    customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.4) : nil
+                ))
+                .frame(width: 135, alignment: isRunning ? .trailing : .center)
                 
-                // Reset button appears between the buttons when running
+                Button(action: {
+                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                        appDelegate.showBlurScreen(forTechnique: selectedPreset)
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Preview")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                }
+                .buttonStyle(PillButtonStyle())
+                
                 if isRunning {
-                    Button {
+                    Button(action: {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                             appDelegate.skipBreak()
                         }
-                    } label: {
+                    }) {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 12, weight: .medium))
@@ -302,12 +296,12 @@ struct HomeView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "menubar.arrow.up.rectangle")
                         .font(.system(size: 14))
-                    Text("Unwind lives in your menu bar")
+                    Text("Mellow lives in your menu bar")
                 }
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 
-                Text("Click the icon in the menu bar to access Unwind anytime")
+                Text("Click the icon in the menu bar to access Mellow anytime")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary.opacity(0.8))
             }
