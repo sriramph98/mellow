@@ -247,6 +247,8 @@ struct HomeView: View {
                     ))
                     .frame(width: 135, alignment: isRunning ? .trailing : .center)
                     
+                    // Preview button (temporarily hidden)
+                    /*
                     Button(action: {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                             appDelegate.showBlurScreen(forTechnique: selectedPreset)
@@ -262,6 +264,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(PillButtonStyle())
                     .disabled(isRunning)
+                    */
                     
                     if isRunning {
                         Button(action: {
@@ -309,9 +312,8 @@ struct HomeView: View {
             // Cloud image and footer
             ZStack(alignment: .bottom) {
                 Image("cloud")
-                    .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 500)
+                    .frame(width: 480)
                     .opacity(0.8)
                     .frame(maxWidth: .infinity, alignment: .bottomLeading)
                 
@@ -321,11 +323,11 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Image(systemName: "menubar.dock.rectangle")
-                                .font(.system(size: 12))
+                                .font(.system(size: 13))
                                 .foregroundColor(.black.opacity(0.6))
                             
                             Text("Mellow lives in the menu bar")
-                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .font(.system(size: 13, weight: .regular, design: .rounded))
                                 .foregroundColor(.black.opacity(0.6))
                         }
                         
