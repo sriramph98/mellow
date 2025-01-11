@@ -112,6 +112,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // Share Feedback
         appMenu.addItem(NSMenuItem(title: "Share Feedback", action: #selector(shareFeedback), keyEquivalent: ""))
+        appMenu.addItem(NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: ""))
         appMenu.addItem(NSMenuItem.separator())
         
         // Quit
@@ -935,5 +936,80 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func showSettingsHelp() {
         // Show help about settings
         NSWorkspace.shared.open(URL(string: "https://github.com/sriramph98/Mellow/wiki/Settings-Guide")!)
+    }
+    
+    @objc private func checkForUpdates() {
+        // Get current version
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        
+        // App Store lookup URL with app ID and country code
+        guard let url = URL(string: "http://itunes.apple.com/us/lookup?bundleId=sriramph.Mellow") else {
+            showUpdateAlert(
+                title: "Error",
+                message: "Failed to check for updates. Please try again later."
+            )
+            return
+        }
+        
+        let config = URLSessionConfiguration.default
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.waitsForConnectivity = true
+        let session = URLSession(configuration: config)
+        
+        let task = session.dataTask(with: url) { [weak self] (data, response, error) in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.showUpdateAlert(
+                        title: "Connection Error",
+                        message: "Please check your internet connection and try again."
+                    )
+                    return
+                }
+                
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                      let results = json["results"] as? [[String: Any]],
+                      let appInfo = results.first,
+                      let latestVersion = appInfo["version"] as? String else {
+                    self?.showUpdateAlert(
+                        title: "Error",
+                        message: "Failed to check for updates. Please try again later."
+                    )
+                    return
+                }
+                
+                if latestVersion > currentVersion {
+                    let alert = NSAlert()
+                    alert.messageText = "Update Available"
+                    alert.informativeText = "A new version (\(latestVersion)) is available on the Mac App Store. You are currently using version \(currentVersion)."
+                    alert.alertStyle = .informational
+                    alert.addButton(withTitle: "Update Now")
+                    alert.addButton(withTitle: "Later")
+                    
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        if let appStoreURL = URL(string: "macappstore://apps.apple.com/app/id6740374516?mt=12") {
+                            NSWorkspace.shared.open(appStoreURL)
+                        }
+                    }
+                } else {
+                    let alert = NSAlert()
+                    alert.messageText = "Up to Date"
+                    alert.informativeText = "You are using the latest version (\(currentVersion))."
+                    alert.alertStyle = .informational
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
+        task.resume()
+    }
+    
+    private func showUpdateAlert(title: String, message: String, hasUpdate: Bool = false) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
