@@ -13,12 +13,11 @@ struct PillButtonStyle: ButtonStyle {
         .padding(.vertical, 8)
         .frame(minWidth: minWidth, alignment: .center)
         .background(
-            customBackground ?? (isHovering ? .black.opacity(0.3) : .white.opacity(0.14))
+            customBackground ?? (isHovering ? .black.opacity(0.4) : .black.opacity(0.25))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 999)
-                .strokeBorder(Color.white.opacity(0.14))
-                .opacity(isHovering ? 1 : 0)
+                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
         )
         .animation(.smooth(duration: 0.2), value: isHovering)
         .cornerRadius(999)

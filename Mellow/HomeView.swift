@@ -47,20 +47,20 @@ struct PresetCard: View {
     private var cardStyle: (background: Color, opacity: Double, stroke: Color) {
         if isSelected {
             return (
-                .accentColor,
-                0.15,  // Subtle but visible when selected
-                .accentColor.opacity(0.8)
+                .black,
+                0.3,  // Darker tint when selected
+                .clear
             )
         } else if isHovering {
             return (
-                .white,
-                0.08,  // Subtle hover state
+                .black,
+                0.2,  // Darker hover state
                 .clear
             )
         } else {
             return (
-                .white,
-                0.05,  // Subtle base state
+                .black,
+                0.15,  // Darker base state
                 .clear
             )
         }
@@ -73,7 +73,7 @@ struct PresetCard: View {
                 Image(systemName: isSelected ? sfSymbol.selected : sfSymbol.normal)
                     .font(.system(size: 32))  // Slightly smaller for horizontal layout
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? Color.accentColor : .white)
+                    .foregroundStyle(isSelected ? .white : .white)
                     .opacity(isSelected ? 1 : 0.9)
                     .frame(width: 40)
                 
@@ -96,7 +96,7 @@ struct PresetCard: View {
                             .font(.system(size: 18))  // Slightly larger for better visibility
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)  // Reduced horizontal padding
-                            .padding(.vertical, 6)    // Reduced vertical padding
+                            
                     }
                     .buttonStyle(PillButtonStyle(minWidth: 0))  // Remove minimum width
                     .frame(height: 30)  // Fixed height for consistency
@@ -129,6 +129,8 @@ struct HomeView: View {
     @StateObject private var timerState: TimerState
     @State private var selectedPreset: String = "20-20-20 Rule"
     @State private var isRunning = false
+    @State private var isFooterVisible = false
+    @State private var isContentVisible = false  // Add state for main content animation
     @Namespace private var animation
     
     init(
@@ -143,199 +145,245 @@ struct HomeView: View {
     
     var body: some View {
         VStack(spacing: 24) {
-            // App Header
-            HStack(spacing: 12) {
-                Image("MellowLogo")  // Make sure this asset exists
-                    .resizable()
-                    .frame(width: 32, height: 32)
+            // Main content group (everything except footer)
+            VStack(spacing: 24) {
+                // App Header
+                HStack(spacing: 12) {
+                    Image("MellowLogo")
+                        .resizable()
+                        .frame(width: 32, height: 32)
+                    
+                    Text("Mellow")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
                 
-                Text("Mellow")
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-            
-            // Preset Cards with 16px spacing
-            VStack(spacing: 16) {  // Changed from 32 to 16
-                PresetCard(
-                    title: "20-20-20 Rule",
-                    isSelected: selectedPreset == "20-20-20 Rule",
-                    description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
-                    action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedPreset = "20-20-20 Rule"
-                            onTimeIntervalChange(1200)
-                        }
-                    },
-                    isDisabled: isRunning && selectedPreset != "20-20-20 Rule",
-                    namespace: animation
-                )
-                
-                PresetCard(
-                    title: "Pomodoro Technique",
-                    isSelected: selectedPreset == "Pomodoro Technique",
-                    description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
-                    action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedPreset = "Pomodoro Technique"
-                            onTimeIntervalChange(1500)
-                        }
-                    },
-                    isDisabled: isRunning && selectedPreset != "Pomodoro Technique",
-                    namespace: animation
-                )
-                
-                PresetCard(
-                    title: "Custom",
-                    isSelected: selectedPreset == "Custom",
-                    description: "Set your own break intervals and durations to match your workflow.",
-                    action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedPreset = "Custom"
+                // Preset Cards with 16px spacing
+                VStack(spacing: 16) {
+                    PresetCard(
+                        title: "20-20-20 Rule",
+                        isSelected: selectedPreset == "20-20-20 Rule",
+                        description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
+                        action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedPreset = "20-20-20 Rule"
+                                onTimeIntervalChange(1200)
+                            }
+                        },
+                        isDisabled: isRunning && selectedPreset != "20-20-20 Rule",
+                        namespace: animation
+                    )
+                    
+                    PresetCard(
+                        title: "Pomodoro Technique",
+                        isSelected: selectedPreset == "Pomodoro Technique",
+                        description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
+                        action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedPreset = "Pomodoro Technique"
+                                onTimeIntervalChange(1500)
+                            }
+                        },
+                        isDisabled: isRunning && selectedPreset != "Pomodoro Technique",
+                        namespace: animation
+                    )
+                    
+                    PresetCard(
+                        title: "Custom",
+                        isSelected: selectedPreset == "Custom",
+                        description: "Set your own break intervals and durations to match your workflow.",
+                        action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedPreset = "Custom"
+                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                    onTimeIntervalChange(appDelegate.customInterval)
+                                }
+                            }
+                        },
+                        isCustom: true,
+                        onModify: {
                             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                onTimeIntervalChange(appDelegate.customInterval)
+                                appDelegate.showCustomRuleSettings()
+                            }
+                        },
+                        isDisabled: isRunning && selectedPreset != "Custom",
+                        namespace: animation
+                    )
+                }
+                .padding(.horizontal, 24)
+                
+                // Buttons section
+                HStack(spacing: 16) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isRunning.toggle()
+                        }
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            if isRunning {
+                                appDelegate.startSelectedTechnique(technique: selectedPreset)
+                            } else {
+                                appDelegate.stopTimer()
                             }
                         }
-                    },
-                    isCustom: true,
-                    onModify: {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showCustomRuleSettings()
+                    }) {
+                        HStack(spacing: 8) {
+                            if isRunning {
+                                Image(systemName: "stop.circle.fill")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text(timerState.timeString)
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                                    .monospacedDigit()
+                            } else {
+                                Text("Start")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                            }
                         }
-                    },
-                    isDisabled: isRunning && selectedPreset != "Custom",
-                    namespace: animation
-                )
-            }
-            .padding(.horizontal, 24)
-            
-            HStack(spacing: 16) {
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        isRunning.toggle()
+                        .foregroundColor(.white)
                     }
-                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                        if isRunning {
-                            appDelegate.startSelectedTechnique(technique: selectedPreset)
-                        } else {
-                            appDelegate.stopTimer()
-                        }
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        if isRunning {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.system(size: 12, weight: .medium))
-                            Text(timerState.timeString)
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .monospacedDigit()
-                        } else {
-                            Text("Start")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                        }
-                    }
-                    .foregroundColor(.white)
-                }
-                .buttonStyle(PillButtonStyle(
-                    minWidth: 135,
-                    customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.4) : nil
-                ))
-                .frame(width: 135, alignment: isRunning ? .trailing : .center)
-                
-                // Remove or comment out the Preview button
-                // Button(action: {
-                //     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                //         appDelegate.showBlurScreen(forTechnique: selectedPreset)
-                //     }
-                // }) {
-                //     HStack(spacing: 6) {
-                //         Image(systemName: "eye")
-                //             .font(.system(size: 12, weight: .medium))
-                //         Text("Preview")
-                //             .font(.system(size: 16, weight: .medium, design: .rounded))
-                //     }
-                //     .foregroundColor(.white)
-                // }
-                // .buttonStyle(PillButtonStyle())
-                
-                if isRunning {
+                    .buttonStyle(PillButtonStyle(
+                        minWidth: 135,
+                        customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.8) : nil
+                    ))
+                    .frame(width: 135, alignment: isRunning ? .trailing : .center)
+                    
                     Button(action: {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.skipBreak()
+                            appDelegate.showBlurScreen(forTechnique: selectedPreset)
                         }
                     }) {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.clockwise")
+                            Image(systemName: "eye")
                                 .font(.system(size: 12, weight: .medium))
-                            Text("Reset")
+                            Text("Preview")
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
                         }
                         .foregroundColor(.white)
                     }
                     .buttonStyle(PillButtonStyle())
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.8)
-                                .combined(with: .opacity)
-                                .combined(with: .offset(x: -20)),
-                            removal: .scale(scale: 0.8)
-                                .combined(with: .opacity)
-                                .combined(with: .offset(x: -20))
+                    .disabled(isRunning)
+                    
+                    if isRunning {
+                        Button(action: {
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                appDelegate.skipBreak()
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text("Reset")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(.white)
+                        }
+                        .buttonStyle(PillButtonStyle())
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 0.8)
+                                    .combined(with: .opacity)
+                                    .combined(with: .offset(x: -20)),
+                                removal: .scale(scale: 0.8)
+                                    .combined(with: .opacity)
+                                    .combined(with: .offset(x: -20))
+                            )
                         )
-                    )
+                    }
                 }
+                .padding(.horizontal, 32)
+                .animation(
+                    .spring(
+                        response: 0.4,
+                        dampingFraction: 0.8,
+                        blendDuration: 0
+                    ),
+                    value: isRunning
+                )
             }
-            .padding(.top, 16)
-            .padding(.horizontal, 32)
-            .animation(
-                .spring(
-                    response: 0.4,
-                    dampingFraction: 0.8,
-                    blendDuration: 0
-                ),
-                value: isRunning
-            )
+            .blur(radius: isContentVisible ? 0 : 10)
+            .opacity(isContentVisible ? 1 : 0)
+            .scaleEffect(isContentVisible ? 1 : 0.8)
             
-            HStack {
-                Spacer()  // Add spacer at start
+            Spacer().frame(height: 8)
+            
+            // Cloud image and footer
+            ZStack(alignment: .bottom) {
+                Image("cloud")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 500)
+                    .opacity(0.8)
+                    .frame(maxWidth: .infinity, alignment: .bottomLeading)
                 
-                // Center - Menu bar info
-                VStack(alignment: .center, spacing: 4) {  // Changed to center alignment
-                    HStack {
-                        Image(systemName: "menubar.dock.rectangle")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.6))
+                // Footer section
+                HStack {
+                    // Left - Menu bar info
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "menubar.dock.rectangle")
+                                .font(.system(size: 12))
+                                .foregroundColor(.black.opacity(0.6))
+                            
+                            Text("Mellow lives in the menu bar")
+                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .foregroundColor(.black.opacity(0.6))
+                        }
                         
-                        Text("Mellow lives in your menu bar")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.6))
+                        Text("Click the icon in the menu to access Mellow")
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .foregroundColor(.black.opacity(0.4))
+                            .multilineTextAlignment(.leading)
                     }
                     
-                    Text("Click the icon in the menu bar to access Mellow anytime")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.4))
-                        .multilineTextAlignment(.center)  // Center align multi-line text
-                }
-                
-                Spacer()  // Keep this spacer
-                
-                // Right side - Settings icon
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 17))
-                    .foregroundColor(.white.opacity(0.6))
-                    .onTapGesture {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showSettings()
+                    Spacer()
+                    
+                    // Right side - Settings icon
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 17))
+                        .foregroundColor(.black.opacity(0.5))
+                        .onTapGesture {
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                appDelegate.showSettings()
+                            }
                         }
-                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 32)
-            .padding(.bottom, 24)
+            .offset(y: isFooterVisible ? 0 : 100)
+            .opacity(isFooterVisible ? 1 : 0)
+            .blur(radius: isFooterVisible ? 0 : 10)
         }
-        .padding(.vertical, 24)
-        .frame(width: 800)
+        .padding(.top, 24)
+        .frame(minWidth: 700)
         .fixedSize(horizontal: false, vertical: true)
+        .background(
+            Rectangle()
+                .foregroundColor(.clear)
+                .background(
+                    LinearGradient(
+                        stops: [
+                            Gradient.Stop(color: Color(red: 0.4, green: 0.75, blue: 1).opacity(0.8), location: 0.00),
+                            Gradient.Stop(color: .white.opacity(0.8), location: 1.00),
+                        ],
+                        startPoint: UnitPoint(x: 0.5, y: 0),
+                        endPoint: UnitPoint(x: 0.5, y: 0.72)
+                    )
+                )
+        )
+        .onAppear {
+            // Animate content first, then footer
+            withAnimation(.easeOut(duration: 1.0)) {
+                isContentVisible = true
+            }
+            
+            // Slight delay for footer animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.easeOut(duration: 1.0)) {
+                    isFooterVisible = true
+                }
+            }
+        }
     }
 }
 
@@ -346,7 +394,6 @@ struct HomeView: View {
         onTimeIntervalChange: { _ in }
     )
     .frame(width: 800, height: 600)
-    .background(Color.black.opacity(0.8))
 }
 
 struct PresetCardPreview: View {
