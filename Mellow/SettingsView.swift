@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("playSound") private var playSound = true
     @State private var launchAtLogin = false
+    @State private var showQuitAlert = false
     let onClose: () -> Void
     @State private var isAppearing = false
     
@@ -46,6 +47,21 @@ struct SettingsView: View {
             }
             
             Spacer(minLength: 16)
+            
+            // Quit Button
+            Button(action: { showQuitAlert = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "power")
+                        .font(.system(size: 13))
+                    Text("Quit Mellow")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(PillButtonStyle())
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(.horizontal, 24)
         .padding(.top, 24)
@@ -62,6 +78,16 @@ struct SettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.95)
+        .alert("Quit Mellow?", isPresented: $showQuitAlert) {
+            Button("Cancel", role: .cancel) { }
+                .keyboardShortcut(.escape)
+            Button("Quit", role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut(.defaultAction)
+        } message: {
+            Text("Are you sure you want to quit Mellow? You'll need to manually restart the app to use it again.")
+        }
         .onAppear {
             withAnimation(.easeOut(duration: 0.2)) {
                 isAppearing = true
