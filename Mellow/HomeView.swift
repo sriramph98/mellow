@@ -247,8 +247,6 @@ struct HomeView: View {
                     ))
                     .frame(width: 135, alignment: isRunning ? .trailing : .center)
                     
-                    // Preview button (temporarily hidden)
-                    /*
                     Button(action: {
                         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                             appDelegate.showBlurScreen(forTechnique: selectedPreset)
@@ -263,13 +261,13 @@ struct HomeView: View {
                         .foregroundColor(.white)
                     }
                     .buttonStyle(PillButtonStyle())
-                    .disabled(isRunning)
-                    */
                     
                     if isRunning {
                         Button(action: {
                             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                appDelegate.skipBreak()
+                                appDelegate.stopTimer()
+                                // Restart the timer immediately with isReset = true
+                                appDelegate.startSelectedTechnique(technique: selectedPreset, isReset: true)
                             }
                         }) {
                             HStack(spacing: 6) {

@@ -98,31 +98,18 @@ struct BlurView: View {
                 "Look 20 feet away for 20 seconds"
             )
         case "Pomodoro Technique":
-            switch pomodoroCount {
-            case 1:
+            if pomodoroCount >= 4 {
                 return (
-                    "First break",
-                    "One Pomodoro down! Take 5 minutes to stretch"
+                    "Long Break! 🎉",
+                    "4 sessions complete\nTake 30 minutes to recharge"
                 )
-            case 2:
+            } else {
+                let remainingPomodoros = 4 - pomodoroCount
+                let sessionNumber = pomodoroCount
+                let remainingText = remainingPomodoros == 1 ? "1 more to go" : "\(remainingPomodoros) more to go"
                 return (
-                    "Second break",
-                    "Halfway there! Take 5 minutes to refresh"
-                )
-            case 3:
-                return (
-                    "Third break",
-                    "Almost there! Take 5 minutes to recharge"
-                )
-            case 4:
-                return (
-                    "Long break time!",
-                    "Excellent work! Take 30 minutes to fully recharge"
-                )
-            default:
-                return (
-                    "Break time",
-                    "Take 5 minutes to reset and refresh"
+                    "Break Time ⏰",
+                    "Session \(sessionNumber) done\n\(remainingText)"
                 )
             }
         case "Custom":

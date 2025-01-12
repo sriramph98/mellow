@@ -392,8 +392,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             isAnimatingOut = false
             blurWindows.removeAll()
             
-            // Remove any notification scheduling here
-            // UNUserNotificationCenter.current().add...
+            // Check if it's time for a long break and reset count if needed
+            let currentCount = pomodoroCount
+            if technique == "Pomodoro Technique" && currentCount >= 4 {
+                print("🍅 Long break reached! Resetting count from \(currentCount) to 0")
+                pomodoroCount = 0
+            }
             
             // Create blur windows without notifications
             for screen in NSScreen.screens {
@@ -402,7 +406,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let blurView = BlurView(
                     technique: technique ?? currentTechnique ?? "Custom",
                     screen: screen,
-                    pomodoroCount: pomodoroCount,
+                    pomodoroCount: currentCount,
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
                         set: { self.isAnimatingOut = $0 }
@@ -464,7 +468,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case "Pomodoro Technique":
             // After 4 pomodoros, take a long break
             if pomodoroCount >= 4 {
-                pomodoroCount = 0
                 return longBreakDuration
             }
             return shortBreakDuration
@@ -716,7 +719,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
-    func startSelectedTechnique(technique: String) {
+    func startSelectedTechnique(technique: String, isReset: Bool = false) {
         do {
             guard !technique.isEmpty else {
                 throw MellowError.invalidTechnique
@@ -729,11 +732,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 timeInterval = 1200  // 20 minutes
             case "Pomodoro Technique":
                 timeInterval = 1500  // 25 minutes
-                pomodoroCount += 1
+                if !isReset {  // Only increment count if not resetting
+                    pomodoroCount += 1
+                    print("🍅 Started new Pomodoro - Count: \(pomodoroCount)/4")
+                }
             case "Custom":
                 // Always use the customInterval value
                 timeInterval = customInterval
-                print("Starting custom technique with interval: \(customInterval)")  // Debug print
             default:
                 if let lastInterval = lastUsedInterval,
                    let lastBreakDuration = lastUsedBreakDuration {
@@ -768,7 +773,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             lastUsedBreakDuration = shortBreakDuration
         }
         
-        // Don't reset currentTechnique, just the timer state
+        // Reset Pomodoro count when stopping
+        if pomodoroCount > 0 {
+            print("🍅 Timer stopped - Resetting count from \(pomodoroCount) to 0")
+            pomodoroCount = 0
+        }
+        
+        // Reset timer state
         nextBreakTime = nil
         breakSound?.stop()
         updateMenuBarTitle()
@@ -820,6 +831,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func skipBreak() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            
+            // Increment pomodoroCount for Pomodoro technique
+            if self.currentTechnique == "Pomodoro Technique" {
+                self.pomodoroCount += 1
+                print("🍅 Skipped break - Count: \(self.pomodoroCount)/4")
+            }
             
             // Wait for animation to complete
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
