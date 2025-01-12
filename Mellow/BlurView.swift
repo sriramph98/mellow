@@ -34,6 +34,80 @@ public struct VisualEffectView: NSViewRepresentable {
     }
 }
 
+// Add this view to handle key events
+struct KeyEventHandlingView: NSViewRepresentable {
+    let onEscape: () -> Void
+    
+    func makeNSView(context: Context) -> KeyEventHandlingNSView {
+        let view = KeyEventHandlingNSView()
+        view.onEscape = onEscape
+        return view
+    }
+    
+    func updateNSView(_ nsView: KeyEventHandlingNSView, context: Context) {
+        nsView.onEscape = onEscape
+    }
+}
+
+class KeyEventHandlingNSView: NSView {
+    var onEscape: (() -> Void)?
+    private var focusTimer: Timer?
+    
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        
+        // Stop existing timer if any
+        focusTimer?.invalidate()
+        
+        guard let window = self.window else { return }
+        
+        // Become first responder immediately
+        window.makeFirstResponder(self)
+        
+        // Set up a timer to maintain focus
+        focusTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self,
+                  let window = self.window,
+                  window.isVisible else { return }
+            
+            // Check if window should be key (internal display)
+            let isInternalDisplay = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+            
+            if isInternalDisplay {
+                // Ensure window is key and first responder
+                if !window.isKeyWindow {
+                    window.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                
+                if window.firstResponder !== self {
+                    window.makeFirstResponder(self)
+                }
+            }
+        }
+    }
+    
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            focusTimer?.invalidate()
+            focusTimer = nil
+        }
+    }
+    
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return self
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { // ESC key
+            onEscape?()
+        }
+    }
+}
+
 struct BlurView: View {
     let technique: String
     let screen: NSScreen
@@ -44,6 +118,7 @@ struct BlurView: View {
     let showContent: Bool
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var wallpaperImage: NSImage?
+    @State private var escapeCount = 0
     
     init(
         technique: String,
@@ -94,6 +169,18 @@ struct BlurView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                 appDelegate.skipBreak()
+            }
+        }
+    }
+    
+    private func handleEscape() {
+        // Ensure UI updates happen on the main thread with animation
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.2)) {
+                escapeCount += 1
+                if escapeCount >= 3 {
+                    handleSkip()
+                }
             }
         }
     }
@@ -175,6 +262,11 @@ struct BlurView: View {
             )
             .transition(.opacity)
             
+            // Add the key event handler
+            KeyEventHandlingView(onEscape: handleEscape)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(true)
+            
             if showContent {
                 // Content with smoother animation
                 VStack(spacing: 32) {
@@ -220,6 +312,19 @@ struct BlurView: View {
                     .buttonStyle(.plain)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     
+                    // Escape key counter text
+                    if escapeCount > 0 && escapeCount < 3 {
+                        Text("Press esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(.top, 8)
+                    } else {
+                        Text("Press esc 3 times to skip")
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundColor(.white.opacity(0.4))
+                            .padding(.top, 8)
+                    }
+                    
                     Spacer().frame(height: 32)
                 }
                 .padding(.horizontal, 32)
@@ -240,10 +345,7 @@ struct BlurView: View {
             }
         }
         .onAppear {
-            // Preload wallpaper before animation starts
             wallpaperImage = getSystemWallpaper()
-            
-            // Smoother entrance animation
             withAnimation(
                 .spring(
                     response: 0.6,
@@ -252,6 +354,18 @@ struct BlurView: View {
                 )
             ) {
                 isAppearing = true
+            }
+            
+            // Ensure internal display window is activated
+            DispatchQueue.main.async {
+                let isInternalDisplay = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+                
+                if isInternalDisplay {
+                    if let window = NSApplication.shared.windows.first(where: { $0.screen == screen }) {
+                        window.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                }
             }
         }
         .opacity(isAppearing ? 1 : 0)
