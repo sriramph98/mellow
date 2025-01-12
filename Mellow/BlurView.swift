@@ -198,26 +198,41 @@ struct BlurView: View {
             if pomodoroCount >= 4 {
                 return (
                     "Long Break! 🎉",
-                    "4 sessions complete\nTake 30 minutes to recharge"
+                    "Great work on completing 4 sessions!\nTake 30 minutes to recharge"
                 )
             } else {
-                let remainingPomodoros = 4 - pomodoroCount
-                let sessionNumber = pomodoroCount
-                let remainingText = remainingPomodoros == 1 ? "1 more to go" : "\(remainingPomodoros) more to go"
-                return (
-                    "Break Time ⏰",
-                    "Session \(sessionNumber) done\n\(remainingText)"
-                )
+                switch pomodoroCount {
+                case 1:
+                    return (
+                        "Break Time ☕",
+                        "Take 5 minutes to recharge.\nStretch, grab a drink, or just chill for a bit!"
+                    )
+                case 2:
+                    return (
+                        "You’ve Earned It! 🌿",
+                        "Relax those eyes and take a deep breath."
+                    )
+                case 3:
+                    return (
+                        "Pause & Refresh 🍵",
+                        "Grab a snack or enjoy a quick stroll!"
+                    )
+                default:
+                    return (
+                        "Time for a Long Break! 🏖️",
+                        "You’ve done amazing work!"
+                    )
+                }
             }
         case "Custom":
             return (
-                "Break time",
-                "Step away from your screen\nGive yourself a well-deserved rest"
+                "Break time!⏰",
+                "Take a moment to unwind. You’ve earned it!"
             )
         default:
             return (
-                "Break time",
-                "Take a moment to reset"
+                "Break time!⏰ ",
+                "Take a moment to unwind. You’ve earned it!"
             )
         }
     }
@@ -296,8 +311,8 @@ struct BlurView: View {
                     
                     // Description
                     Text(content.description)
-                        .font(.system(size: 24, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.8))
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
                         .multilineTextAlignment(.center)
                         .lineSpacing(8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
