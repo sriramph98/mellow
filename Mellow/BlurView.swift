@@ -41,14 +41,22 @@ struct BlurView: View {
     @State private var timeRemaining: TimeInterval
     @State var isAppearing = false
     @Binding var isAnimatingOut: Bool
+    let showContent: Bool
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var wallpaperImage: NSImage?
     
-    init(technique: String, screen: NSScreen, pomodoroCount: Int, isAnimatingOut: Binding<Bool>) {
+    init(
+        technique: String,
+        screen: NSScreen,
+        pomodoroCount: Int,
+        isAnimatingOut: Binding<Bool>,
+        showContent: Bool = true
+    ) {
         self.technique = technique
         self.screen = screen
         self.pomodoroCount = pomodoroCount
         self._isAnimatingOut = isAnimatingOut
+        self.showContent = showContent
         
         let duration: TimeInterval
         switch technique {
@@ -167,63 +175,58 @@ struct BlurView: View {
             )
             .transition(.opacity)
             
-            // Content with smoother animation
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Title
-                Text(content.title)
-                    .font(.system(size: 48, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(8)
-                
-                // Instructions
-                Text(content.description)
-                    .font(.system(size: 24, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(8)
-                
-                // Timer
-                Text(formattedTime)
-                    .font(.system(size: 56, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundColor(.white)
-                    .padding(.top, 40)
-                
-                Spacer()
-                
-                // Skip button
-                Button(action: handleSkip) {
-                    HStack(spacing: 8) {
+            if showContent {
+                // Content with smoother animation
+                VStack(spacing: 32) {
+                    Spacer()
+                    
+                    // Title
+                    Text(content.title)
+                        .font(.system(size: 48, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    
+                    // Description
+                    Text(content.description)
+                        .font(.system(size: 24, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    
+                    // Timer
+                    Text(formattedTime)
+                        .font(.system(size: 64, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
+                        .monospacedDigit()
+                        .transition(.scale.combined(with: .opacity))
+                    
+                    Spacer()
+                    
+                    // Skip button
+                    Button(action: handleSkip) {
                         Text("Skip")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(.white.opacity(0.2))
+                            )
                     }
-                    .foregroundColor(.white.opacity(0.6))
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-                    .background {
-                        Capsule()
-                            .fill(.white.opacity(0.2))
-                    }
+                    .buttonStyle(.plain)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    
+                    Spacer().frame(height: 32)
                 }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .keyboardShortcut(.escape, modifiers: [])
-                .opacity(isAnimatingOut ? 0 : 1)  // Fade out with content
-                
-                Spacer().frame(height: 24)
+                .padding(.horizontal, 32)
+                .opacity(isAppearing ? 1 : 0)
+                .blur(radius: isAppearing ? 0 : 10)
+                .scaleEffect(isAppearing ? 1 : 0.9)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(
-                .asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 1.02)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                )
-            )
         }
         .onReceive(timer) { _ in
             if timeRemaining > 0 {

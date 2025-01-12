@@ -399,9 +399,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 pomodoroCount = 0
             }
             
-            // Create blur windows without notifications
+            // Create blur windows for each screen
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
+                
+                // Check if this is the internal display
+                let isInternalDisplay = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
                 
                 let blurView = BlurView(
                     technique: technique ?? currentTechnique ?? "Custom",
@@ -410,7 +413,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
                         set: { self.isAnimatingOut = $0 }
-                    )
+                    ),
+                    showContent: isInternalDisplay  // Show content only on internal display
                 )
                 window.contentView = NSHostingView(rootView: blurView)
                 window.makeKeyAndOrderFront(nil)
@@ -447,6 +451,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.acceptsMouseMovedEvents = true
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        // Prevent system sleep during blur view
+        window.level = .screenSaver
         
         return window
     }
@@ -956,69 +963,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc private func checkForUpdates() {
-        // Get current version
-        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
-        
-        // App Store lookup URL with app ID and country code
-        guard let url = URL(string: "http://itunes.apple.com/us/lookup?bundleId=sriramph.Mellow") else {
-            showUpdateAlert(
-                title: "Error",
-                message: "Failed to check for updates. Please try again later."
-            )
-            return
-        }
-        
-        let config = URLSessionConfiguration.default
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.waitsForConnectivity = true
-        let session = URLSession(configuration: config)
-        
-        let task = session.dataTask(with: url) { [weak self] (data, response, error) in
-            DispatchQueue.main.async {
-                if let error = error {
-                    self?.showUpdateAlert(
-                        title: "Connection Error",
-                        message: "Please check your internet connection and try again."
-                    )
-                    return
-                }
-                
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                      let results = json["results"] as? [[String: Any]],
-                      let appInfo = results.first,
-                      let latestVersion = appInfo["version"] as? String else {
-                    self?.showUpdateAlert(
-                        title: "Error",
-                        message: "Failed to check for updates. Please try again later."
-                    )
-                    return
-                }
-                
-                if latestVersion > currentVersion {
-                    let alert = NSAlert()
-                    alert.messageText = "Update Available"
-                    alert.informativeText = "A new version (\(latestVersion)) is available on the Mac App Store. You are currently using version \(currentVersion)."
-                    alert.alertStyle = .informational
-                    alert.addButton(withTitle: "Update Now")
-                    alert.addButton(withTitle: "Later")
-                    
-                    if alert.runModal() == .alertFirstButtonReturn {
-                        if let appStoreURL = URL(string: "macappstore://apps.apple.com/app/id6740374516?mt=12") {
-                            NSWorkspace.shared.open(appStoreURL)
-                        }
-                    }
-                } else {
-                    let alert = NSAlert()
-                    alert.messageText = "Up to Date"
-                    alert.informativeText = "You are using the latest version (\(currentVersion))."
-                    alert.alertStyle = .informational
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
-                }
-            }
-        }
-        task.resume()
+        NSWorkspace.shared.open(URL(string: "macappstore://apps.apple.com/app/id6740374516?mt=12")!)
     }
     
     private func showUpdateAlert(title: String, message: String, hasUpdate: Bool = false) {

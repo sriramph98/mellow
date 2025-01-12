@@ -320,7 +320,7 @@ struct HomeView: View {
                     // Left - Menu bar info
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
-                            Image(systemName: "menubar.dock.rectangle")
+                            Image(systemName: "menubar.arrow.up.rectangle")
                                 .font(.system(size: 13))
                                 .foregroundColor(.black.opacity(0.6))
                             
