@@ -119,6 +119,8 @@ struct BlurView: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var wallpaperImage: NSImage?
     @State private var escapeCount = 0
+    @State private var currentTime = Date()
+    private let timeTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     init(
         technique: String,
@@ -239,6 +241,12 @@ struct BlurView: View {
         return nil
     }
     
+    private var formattedCurrentTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: currentTime)
+    }
+    
     var body: some View {
         ZStack {
             // System wallpaper with improved animation
@@ -270,6 +278,12 @@ struct BlurView: View {
             if showContent {
                 // Content with smoother animation
                 VStack(spacing: 32) {
+                    // Current time at the top
+                    Text(formattedCurrentTime)
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.top, 64)
+                    
                     Spacer()
                     
                     // Title
@@ -314,12 +328,12 @@ struct BlurView: View {
                     
                     // Escape key counter text
                     if escapeCount > 0 && escapeCount < 3 {
-                        Text("Press esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
+                        Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
                             .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundColor(.white.opacity(0.6))
                             .padding(.top, 8)
                     } else {
-                        Text("Press esc 3 times to skip")
+                        Text(" Press ⎋ esc 3 times to skip")
                             .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundColor(.white.opacity(0.4))
                             .padding(.top, 8)
@@ -343,6 +357,9 @@ struct BlurView: View {
                 }
                 handleSkip()
             }
+        }
+        .onReceive(timeTimer) { _ in
+            currentTime = Date()
         }
         .onAppear {
             wallpaperImage = getSystemWallpaper()
