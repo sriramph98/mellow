@@ -11,7 +11,7 @@ struct PillButtonStyle: ButtonStyle {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .frame(minWidth: minWidth, alignment: .center)
+        .frame(minWidth: 8, alignment: .center)
         .background(
             customBackground ?? (isHovering ? .black.opacity(0.4) : .black.opacity(0.25))
         )

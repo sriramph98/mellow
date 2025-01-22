@@ -9,6 +9,10 @@ struct PresetCard: View {
     let onModify: (() -> Void)?
     let isDisabled: Bool
     let namespace: Namespace.ID
+    let timerState: TimerState
+    let isRunning: Bool
+    let onStartStop: () -> Void
+    let onPauseResume: () -> Void
     @State private var isHovering = false
     
     init(
@@ -19,7 +23,11 @@ struct PresetCard: View {
         isCustom: Bool = false,
         onModify: (() -> Void)? = nil,
         isDisabled: Bool = false,
-        namespace: Namespace.ID
+        namespace: Namespace.ID,
+        timerState: TimerState,
+        isRunning: Bool,
+        onStartStop: @escaping () -> Void,
+        onPauseResume: @escaping () -> Void
     ) {
         self.title = title
         self.isSelected = isSelected
@@ -29,6 +37,10 @@ struct PresetCard: View {
         self.onModify = onModify
         self.isDisabled = isDisabled
         self.namespace = namespace
+        self.timerState = timerState
+        self.isRunning = isRunning
+        self.onStartStop = onStartStop
+        self.onPauseResume = onPauseResume
     }
     
     private var sfSymbol: (normal: String, selected: String) {
@@ -68,38 +80,79 @@ struct PresetCard: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 24) {
-                // Icon
-                Image(systemName: isSelected ? sfSymbol.selected : sfSymbol.normal)
-                    .font(.system(size: 32))  // Slightly smaller for horizontal layout
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? .white : .white)
-                    .opacity(isSelected ? 1 : 0.9)
-                    .frame(width: 40)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
+            VStack(spacing: 16) {
+                HStack(spacing: 24) {
+                    // Icon
+                    Image(systemName: isSelected ? sfSymbol.selected : sfSymbol.normal)
+                        .font(.system(size: 32))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(isSelected ? .white : .white)
+                        .opacity(isSelected ? 1 : 0.9)
+                        .frame(width: 40)
                     
-                    Text(description)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(2)
-                }
-                
-                Spacer()
-                
-                if isCustom && isSelected {
-                    Button(action: { onModify?() }) {
-                        Image(systemName: "gearshape.circle.fill")
-                            .font(.system(size: 18))  // Slightly larger for better visibility
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 8)  // Reduced horizontal padding
-                            
+                        
+                        Text(description)
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(2)
                     }
-                    .buttonStyle(PillButtonStyle(minWidth: 0))  // Remove minimum width
-                    .frame(height: 30)  // Fixed height for consistency
+                    
+                    Spacer()
+                    
+                    // Timer controls and settings button
+                    if isSelected {
+                        HStack(spacing: 16) {
+                            Button(action: onStartStop) {
+                                HStack(spacing: 8) {
+                                    if isRunning {
+                                        Image(systemName: "stop.circle.fill")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text(timerState.timeString)
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                            .monospacedDigit()
+                                    } else {
+                                        Image(systemName: "play.circle.fill")
+                                            .font(.system(size: 16, weight: .medium))
+                                    }
+                                }
+                                .foregroundColor(.white)
+                            }
+                            .buttonStyle(PillButtonStyle(
+                                customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.8) : nil
+                            ))
+                            .animation(.smooth(duration: 0.3), value: timerState.timeString)
+                            
+                            if isRunning {
+                                Button(action: onPauseResume) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: timerState.isPaused ? "play.circle.fill" : "pause.circle.fill")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text(timerState.isPaused ? "Resume" : "Pause")
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                    }
+                                    .foregroundColor(.white)
+                                }
+                                .buttonStyle(PillButtonStyle(
+                                    customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
+                                ))
+                                .animation(.smooth(duration: 0.3), value: timerState.isPaused)
+                                .transition(.opacity.combined(with: .scale))
+                            }
+                            
+                            if isCustom && !isRunning {
+                                Button(action: { onModify?() }) {
+                                    Image(systemName: "gearshape.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.white)
+                                }
+                                .buttonStyle(PillButtonStyle(minWidth: 0))
+                            }
+                        }
+                    }
                 }
             }
             .padding(24)
@@ -172,7 +225,26 @@ struct HomeView: View {
                             }
                         },
                         isDisabled: isRunning && selectedPreset != "20-20-20 Rule",
-                        namespace: animation
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "20-20-20 Rule",
+                        onStartStop: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isRunning.toggle()
+                            }
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                if isRunning {
+                                    appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                } else {
+                                    appDelegate.stopTimer()
+                                }
+                            }
+                        },
+                        onPauseResume: {
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                appDelegate.togglePauseTimer()
+                            }
+                        }
                     )
                     
                     PresetCard(
@@ -186,13 +258,32 @@ struct HomeView: View {
                             }
                         },
                         isDisabled: isRunning && selectedPreset != "Pomodoro Technique",
-                        namespace: animation
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "Pomodoro Technique",
+                        onStartStop: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isRunning.toggle()
+                            }
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                if isRunning {
+                                    appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                } else {
+                                    appDelegate.stopTimer()
+                                }
+                            }
+                        },
+                        onPauseResume: {
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                appDelegate.togglePauseTimer()
+                            }
+                        }
                     )
                     
                     PresetCard(
                         title: "Custom",
                         isSelected: selectedPreset == "Custom",
-                        description: "Set your own break intervals and durations to match your workflow.",
+                        description: "Set your own rules to match your workflow.",
                         action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 selectedPreset = "Custom"
@@ -208,90 +299,29 @@ struct HomeView: View {
                             }
                         },
                         isDisabled: isRunning && selectedPreset != "Custom",
-                        namespace: animation
-                    )
-                }
-                .padding(.horizontal, 24)
-                
-                // Buttons section
-                HStack(spacing: 16) {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isRunning.toggle()
-                        }
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            if isRunning {
-                                appDelegate.startSelectedTechnique(technique: selectedPreset)
-                            } else {
-                                appDelegate.stopTimer()
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "Custom",
+                        onStartStop: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                isRunning.toggle()
                             }
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            if isRunning {
-                                Image(systemName: "stop.circle.fill")
-                                    .font(.system(size: 12, weight: .medium))
-                                Text(timerState.timeString)
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                                    .monospacedDigit()
-                            } else {
-                                Text("Start")
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                if isRunning {
+                                    appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                } else {
+                                    appDelegate.stopTimer()
+                                }
                             }
-                        }
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(PillButtonStyle(
-                        minWidth: 0,
-                        customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.8) : nil
-                    ))
-                    .animation(.smooth(duration: 0.3), value: timerState.timeString)
-                    
-                    if isRunning {
-                        Button(action: {
+                        },
+                        onPauseResume: {
                             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                                 appDelegate.togglePauseTimer()
                             }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: timerState.isPaused ? "play.circle.fill" : "pause.circle.fill")
-                                    .font(.system(size: 12, weight: .medium))
-                                Text(timerState.isPaused ? "Resume" : "Pause")
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                            }
-                            .foregroundColor(.white)
                         }
-                        .buttonStyle(PillButtonStyle(
-                            minWidth: 0,
-                            customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
-                        ))
-                        .animation(.smooth(duration: 0.3), value: timerState.isPaused)
-                        .transition(.opacity.combined(with: .scale))
-                    }
-                    
-                    Button(action: {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showTestBlurScreen()
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "eye")
-                                .font(.system(size: 12, weight: .medium))
-                            Text("Test Overlay")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                        }
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(PillButtonStyle(
-                        minWidth: 0,
-                        customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
-                    ))
+                    )
                 }
-                .padding(.horizontal, 32)
-                .animation(
-                    .smooth(duration: 0.3),
-                    value: isRunning
-                )
+                .padding(.horizontal, 24)
             }
             .blur(radius: isContentVisible ? 0 : 10)
             .opacity(isContentVisible ? 1 : 0)
@@ -409,7 +439,11 @@ struct PresetCardPreview: View {
             isSelected: true,
             description: "Every 20 minutes, look 20 feet away for 20 seconds.",
             action: {},
-            namespace: namespace
+            namespace: namespace,
+            timerState: TimerState(),
+            isRunning: true,
+            onStartStop: {},
+            onPauseResume: {}
         )
         .frame(width: 250)
         .background(Color.black.opacity(0.8))

@@ -93,6 +93,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApplication.shared.activate(ignoringOtherApps: true)
             self?.homeWindow?.makeKeyAndOrderFront(nil)
         }
+        
+        // Add observer for screen lock/unlock notifications
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleScreenLock),
+            name: NSNotification.Name("com.apple.screenIsLocked"),
+            object: nil
+        )
+        
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleScreenUnlock),
+            name: NSNotification.Name("com.apple.screenIsUnlocked"),
+            object: nil
+        )
+        
+        // Add observers for screen saver
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleScreenLock),
+            name: NSNotification.Name("com.apple.screensaver.didstart"),
+            object: nil
+        )
+        
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleScreenUnlock),
+            name: NSNotification.Name("com.apple.screensaver.didstop"),
+            object: nil
+        )
     }
     
     private func setupMinimalMainMenu() {
@@ -164,10 +194,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         homeWindow?.appearance = NSAppearance(named: .darkAqua)
         homeWindow?.isMovableByWindowBackground = true
         homeWindow?.titlebarAppearsTransparent = true
-        homeWindow?.titleVisibility = .visible
+        homeWindow?.titleVisibility = .hidden
         homeWindow?.backgroundColor = .clear
         homeWindow?.isOpaque = false
         homeWindow?.hasShadow = true
+        homeWindow?.title = "Mellow"  // Keep title for Mission Control
         
         // Create container view with size fitting
         let containerView = NSView(frame: .zero)
@@ -1194,6 +1225,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
         } catch {
             handleError(error)
+        }
+    }
+    
+    @objc private func handleScreenLock() {
+        // Save current timer state and pause if running
+        if let nextBreak = nextBreakTime {
+            pausedTimeRemaining = nextBreak.timeIntervalSinceNow
+            timer?.invalidate()
+            timer = nil
+            timerState.isPaused = true
+            updateMenuBarTitle()
+        }
+    }
+    
+    @objc private func handleScreenUnlock() {
+        // Resume timer if it was paused
+        if let remaining = pausedTimeRemaining {
+            nextBreakTime = Date().addingTimeInterval(remaining)
+            pausedTimeRemaining = nil
+            
+            timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                self?.updateTimer()
+            }
+            if let timer = timer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
+            timerState.isPaused = false
+            updateMenuBarTitle()
         }
     }
 }
