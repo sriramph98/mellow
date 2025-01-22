@@ -408,6 +408,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func showBlurScreen(forTechnique technique: String? = nil) {
         do {
+            // Check if overlay is enabled
+            guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
+            
             guard blurWindow == nil else { return }
             isAnimatingOut = false
             blurWindows.removeAll()
@@ -1070,6 +1073,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             showBlurScreen(forTechnique: currentTechnique)
             nextBreakTime = Date().addingTimeInterval(timeInterval)
+        }
+    }
+    
+    func showTestBlurScreen() {
+        do {
+            // Check if overlay is enabled
+            guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
+            
+            // Clean up any existing windows first
+            blurWindow?.orderOut(nil)
+            blurWindow = nil
+            blurWindows.forEach { $0.orderOut(nil) }
+            blurWindows.removeAll()
+            
+            // Reset animation state
+            isAnimatingOut = false
+            
+            // Only create window for built-in display
+            if let screen = NSScreen.screens.first(where: { screen in
+                screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+            }) {
+                // Medium widget dimensions (approximately 273 x 148 points)
+                let windowWidth: CGFloat = 273
+                let windowHeight: CGFloat = 148
+                
+                // Position in top right with padding
+                let padding: CGFloat = 20
+                let windowX = screen.frame.maxX - windowWidth - padding
+                let windowY = screen.frame.maxY - windowHeight - padding
+                
+                let frame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
+                let window = try createBlurWindow(frame: frame)
+                
+                // Configure window
+                window.level = .floating
+                window.isMovable = false
+                window.isMovableByWindowBackground = false
+                window.hasShadow = true
+                window.backgroundColor = .clear
+                
+                let blurView = BlurView(
+                    technique: "Test",
+                    screen: screen,
+                    pomodoroCount: 0,
+                    isAnimatingOut: .init(
+                        get: { self.isAnimatingOut },
+                        set: { [weak self] newValue in 
+                            self?.isAnimatingOut = newValue
+                            if newValue {
+                                // Clear the window references after animation
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                                    self?.blurWindow?.orderOut(nil)
+                                    self?.blurWindow = nil
+                                    self?.blurWindows.forEach { $0.orderOut(nil) }
+                                    self?.blurWindows.removeAll()
+                                }
+                            }
+                        }
+                    ),
+                    showContent: true,
+                    testMode: true
+                )
+                window.contentView = NSHostingView(rootView: blurView)
+                window.makeKeyAndOrderFront(nil)
+                
+                blurWindows.append(window)
+                blurWindow = window
+            }
+            
+        } catch {
+            handleError(error)
         }
     }
 }

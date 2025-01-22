@@ -268,6 +268,24 @@ struct HomeView: View {
                         .animation(.smooth(duration: 0.3), value: timerState.isPaused)
                         .transition(.opacity.combined(with: .scale))
                     }
+                    
+                    Button(action: {
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            appDelegate.showTestBlurScreen()
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "eye")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Test Overlay")
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                        }
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(PillButtonStyle(
+                        minWidth: 0,
+                        customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
+                    ))
                 }
                 .padding(.horizontal, 32)
                 .animation(

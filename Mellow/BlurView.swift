@@ -151,7 +151,10 @@ struct BlurView: View {
     @State var isAppearing = false
     @Binding var isAnimatingOut: Bool
     let showContent: Bool
+    var testMode: Bool = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let progressTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    @State private var progress: Double = 1.0
     @State private var wallpaperImage: NSImage?
     @State private var escapeCount = 0
     @State private var currentTime = Date()
@@ -164,24 +167,30 @@ struct BlurView: View {
         screen: NSScreen,
         pomodoroCount: Int,
         isAnimatingOut: Binding<Bool>,
-        showContent: Bool = true
+        showContent: Bool = true,
+        testMode: Bool = false
     ) {
         self.technique = technique
         self.screen = screen
         self.pomodoroCount = pomodoroCount
         self._isAnimatingOut = isAnimatingOut
         self.showContent = showContent
+        self.testMode = testMode
         
         let duration: TimeInterval
-        switch technique {
-        case "20-20-20 Rule":
-            duration = 20
-        case "Pomodoro Technique":
-            duration = pomodoroCount >= 4 ? 1800 : 300
-        case "Custom":
-            duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
-        default:
-            duration = 20
+        if testMode {
+            duration = 5 // 5 second timeout for test mode
+        } else {
+            switch technique {
+            case "20-20-20 Rule":
+                duration = 20
+            case "Pomodoro Technique":
+                duration = pomodoroCount >= 4 ? 1800 : 300
+            case "Custom":
+                duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
+            default:
+                duration = 20
+            }
         }
         self._timeRemaining = State(initialValue: duration)
     }
@@ -332,119 +341,180 @@ struct BlurView: View {
     
     var body: some View {
         ZStack {
-            // System wallpaper with improved animation
-            if let wallpaperImage = wallpaperImage {
-                Image(nsImage: wallpaperImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+            if testMode {
+                // Simple widget-style view for test mode
+                ZStack {
+                    VStack(spacing: 0) {
+                        Text("Test Text")
+                            .font(.system(size: 24, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
-            }
-            
-            // Dark background overlay with smoother transition
-            Color.black
-                .opacity(0.8)
-                .transition(.opacity)
-            
-            // Subtle blur with improved animation
-            VisualEffectView(
-                material: .hudWindow,
-                blendingMode: .withinWindow
-            )
-            .transition(.opacity)
-            
-            // Add the key event handler
-            KeyEventHandlingView(onEscape: handleEscape)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(true)
-            
-            if showContent {
-                VStack(spacing: 32) {
-                    // Current time - always visible
-                    Text(formattedCurrentTime)
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(.top, 64)
                     
-                    Spacer()
-                    
-                    // Conditional content based on skip confirmation
-                    Group {
-                        if showingSkipConfirmation {
-                            // Skip confirmation content
-                            Text("🤔")
-                                .font(.system(size: 64))
-                                .padding(.bottom, -16)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                            
-                            Text("Skip this break?")
-                                .font(.system(size: 48, weight: .heavy, design: .rounded))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                            
-                            Text("Your eyes deserve this moment of rest")
-                                .font(.system(size: 17, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                        } else {
-                            // Original content
-                            Text(content.emoji)
-                                .font(.system(size: 64))
-                                .padding(.bottom, -16)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                            
-                            Text(content.title)
-                                .font(.system(size: 48, weight: .heavy, design: .rounded))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(8)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                            
-                            Text(content.description)
-                                .font(.system(size: 17, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6))
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(8)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                        }
-                    }
-                    
-                    // Pomodoro circles - always visible if applicable
-                    if technique == "Pomodoro Technique" {
-                        pomodoroCircles
-                    }
-                    
-                    // Timer - always visible
-                    Text(formattedTime)
-                        .font(.system(size: 64, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                        .monospacedDigit()
-                    
-                    Spacer()
-                    
-                    // Bottom buttons with transitions
-                    Group {
-                        if showingSkipConfirmation {
-                            // Skip confirmation buttons
-                            HStack(spacing: 16) {
+                    // Dismiss button with timeout indicator
+                    VStack {
+                        HStack {
+                            Spacer()
+                            ZStack {
+                                // Timeout circle with smooth animation
+                                Circle()
+                                    .trim(from: 0, to: progress)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                                    .rotationEffect(.degrees(-90))
+                                    .frame(width: 24, height: 24)
+                                
+                                // X mark button
                                 Button(action: {
-                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                                        showingSkipConfirmation = false
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        isAnimatingOut = true
+                                        isAppearing = false
                                     }
                                 }) {
-                                    Text("Continue Break")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 24)
-                                        .padding(.vertical, 12)
-                                        .background(Capsule().fill(.white.opacity(0.2)))
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.white.opacity(0.8))
                                 }
                                 .buttonStyle(.plain)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            }
+                            .padding(8)
+                        }
+                        Spacer()
+                    }
+                }
+                .background(
+                    VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                // System wallpaper with improved animation
+                if let wallpaperImage = wallpaperImage {
+                    Image(nsImage: wallpaperImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity)
+                }
+                
+                // Dark background overlay with smoother transition
+                Color.black
+                    .opacity(0.8)
+                    .transition(.opacity)
+                
+                // Subtle blur with improved animation
+                VisualEffectView(
+                    material: .hudWindow,
+                    blendingMode: .withinWindow
+                )
+                .transition(.opacity)
+                
+                // Add the key event handler
+                KeyEventHandlingView(onEscape: handleEscape)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(true)
+                
+                if showContent {
+                    VStack(spacing: 32) {
+                        // Current time - always visible
+                        Text(formattedCurrentTime)
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(.top, 64)
+                        
+                        Spacer()
+                        
+                        // Conditional content based on skip confirmation
+                        Group {
+                            if showingSkipConfirmation {
+                                // Skip confirmation content
+                                Text("🤔")
+                                    .font(.system(size: 64))
+                                    .padding(.bottom, -16)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
                                 
-                                Button(action: confirmSkip) {
+                                Text("Skip this break?")
+                                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                                
+                                Text("Your eyes deserve this moment of rest")
+                                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .multilineTextAlignment(.center)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                            } else {
+                                // Original content
+                                Text(content.emoji)
+                                    .font(.system(size: 64))
+                                    .padding(.bottom, -16)
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                                
+                                Text(content.title)
+                                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineSpacing(8)
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                                
+                                Text(content.description)
+                                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .multilineTextAlignment(.center)
+                                    .lineSpacing(8)
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                            }
+                        }
+                        
+                        // Pomodoro circles - always visible if applicable
+                        if technique == "Pomodoro Technique" {
+                            pomodoroCircles
+                        }
+                        
+                        // Timer - always visible
+                        Text(formattedTime)
+                            .font(.system(size: 64, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                            .monospacedDigit()
+                        
+                        Spacer()
+                        
+                        // Bottom buttons with transitions
+                        Group {
+                            if showingSkipConfirmation {
+                                // Skip confirmation buttons
+                                HStack(spacing: 16) {
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                            showingSkipConfirmation = false
+                                        }
+                                    }) {
+                                        Text("Continue Break")
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 24)
+                                            .padding(.vertical, 12)
+                                            .background(Capsule().fill(.white.opacity(0.2)))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                                    
+                                    Button(action: confirmSkip) {
+                                        Text("Skip")
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 24)
+                                            .padding(.vertical, 12)
+                                            .background(Capsule().fill(.white.opacity(0.2)))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                                }
+                            } else {
+                                // Original skip button and ESC text
+                                Button(action: { handleSkip(fromButton: true) }) {
                                     Text("Skip")
                                         .font(.system(size: 16, weight: .medium, design: .rounded))
                                         .foregroundColor(.white)
@@ -453,66 +523,77 @@ struct BlurView: View {
                                         .background(Capsule().fill(.white.opacity(0.2)))
                                 }
                                 .buttonStyle(.plain)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                            }
-                        } else {
-                            // Original skip button and ESC text
-                            Button(action: { handleSkip(fromButton: true) }) {
-                                Text("Skip")
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 12)
-                                    .background(Capsule().fill(.white.opacity(0.2)))
-                            }
-                            .buttonStyle(.plain)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                            
-                            if escapeCount > 0 && escapeCount < 3 {
-                                Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
-                                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .padding(.top, 8)
-                            } else {
-                                Text(" Press ⎋ esc 3 times to skip")
-                                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.4))
-                                    .padding(.top, 8)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                                
+                                if escapeCount > 0 && escapeCount < 3 {
+                                    Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
+                                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                                        .foregroundColor(.white.opacity(0.6))
+                                        .padding(.top, 8)
+                                } else {
+                                    Text(" Press ⎋ esc 3 times to skip")
+                                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                                        .foregroundColor(.white.opacity(0.4))
+                                        .padding(.top, 8)
+                                }
                             }
                         }
+                        
+                        Spacer().frame(height: 32)
                     }
-                    
-                    Spacer().frame(height: 32)
+                    .padding(.horizontal, 32)
+                    .opacity(isAppearing ? 1 : 0)
+                    .blur(radius: isAppearing ? 0 : 10)
+                    .scaleEffect(isAppearing ? 1 : 0.95)
                 }
-                .padding(.horizontal, 32)
-                .opacity(isAppearing ? 1 : 0)
-                .blur(radius: isAppearing ? 0 : 10)
-                .scaleEffect(isAppearing ? 1 : 0.95)
             }
         }
         .onReceive(timer) { _ in
-            if timeRemaining > 0 {
-                timeRemaining -= 1
+            if testMode {
+                if timeRemaining > 0 {
+                    timeRemaining -= 1
+                }
+                if timeRemaining <= 0 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isAnimatingOut = true
+                        isAppearing = false
+                    }
+                }
             } else {
-                handleSkip(fromButton: false)  // Just skip the break when timer ends
+                if timeRemaining > 0 {
+                    timeRemaining -= 1
+                } else {
+                    handleSkip(fromButton: false)  // Just skip the break when timer ends
+                }
             }
         }
         .onReceive(timeTimer) { _ in
             currentTime = Date()
         }
+        .onReceive(progressTimer) { _ in
+            if testMode {
+                withAnimation(.linear(duration: 0.1)) {
+                    progress = max(0, Double(timeRemaining) / 5.0)
+                }
+            }
+        }
         .onAppear {
-            wallpaperImage = getSystemWallpaper()
-            screenSaverManager.preventScreenSaver()
+            progress = 1.0
+            timeRemaining = testMode ? 5 : timeRemaining
+            isAppearing = false
             
             withAnimation(
                 .spring(
-                    response: 0.3,         // Match settings animation
-                    dampingFraction: 0.65, // Match settings animation
+                    response: 0.3,
+                    dampingFraction: 0.65,
                     blendDuration: 0
                 )
             ) {
                 isAppearing = true
             }
+            
+            wallpaperImage = getSystemWallpaper()
+            screenSaverManager.preventScreenSaver()
             
             // Ensure internal display window is activated
             DispatchQueue.main.async {

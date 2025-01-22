@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("playSound") private var playSound = true
+    @AppStorage("showOverlay") private var showOverlay = true
     @State private var launchAtLogin = false
     @State private var showQuitAlert = false
     let onClose: () -> Void
@@ -43,6 +44,16 @@ struct SettingsView: View {
                     title: "Enable Sound",
                     description: "Play sounds to signal the start and end of breaks.",
                     isEnabled: $playSound
+                )
+                
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                
+                // Overlay Setting
+                SettingRow(
+                    title: "Enable Test Overlay",
+                    description: "Show a small overlay in the top right corner when testing.",
+                    isEnabled: $showOverlay
                 )
             }
             
