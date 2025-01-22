@@ -88,15 +88,16 @@ struct OverlayView: View {
                                     appDelegate.overlayDismissed = true
                                     appDelegate.nextBreakTime = Date().addingTimeInterval(appDelegate.timeInterval)
                                     // Create and start timer
-                                    appDelegate.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak appDelegate] _ in
+                                    let newTimer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak appDelegate] _ in
                                         appDelegate?.updateTimer()
                                     }
-                                    RunLoop.main.add(appDelegate.timer!, forMode: .common)
+                                    RunLoop.main.add(newTimer, forMode: .common)
+                                    appDelegate.timer = newTimer
                                 }
                             }
                         }) {
                             HStack(spacing: 4) {
-                                Image(systemName: "forward.fill")
+                                Image(systemName: "forward")
                                     .font(.system(size: 12, weight: .medium))
                                 Text("Skip")
                                     .font(.system(size: 13, weight: .medium, design: .rounded))

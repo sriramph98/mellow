@@ -513,12 +513,16 @@ struct BlurView: View {
                                     .transition(.move(edge: .trailing).combined(with: .opacity))
                                     
                                     Button(action: confirmSkip) {
-                                        Text("Skip")
-                                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 24)
-                                            .padding(.vertical, 12)
-                                            .background(Capsule().fill(.white.opacity(0.2)))
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "forward")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Text("Skip")
+                                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 12)
+                                        .background(Capsule().fill(.white.opacity(0.2)))
                                     }
                                     .buttonStyle(.plain)
                                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -526,12 +530,16 @@ struct BlurView: View {
                             } else {
                                 // Original skip button and ESC text
                                 Button(action: { handleSkip(fromButton: true) }) {
-                                    Text("Skip")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 24)
-                                        .padding(.vertical, 12)
-                                        .background(Capsule().fill(.white.opacity(0.2)))
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "forward")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text("Skip")
+                                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 12)
+                                    .background(Capsule().fill(.white.opacity(0.2)))
                                 }
                                 .buttonStyle(.plain)
                                 .transition(.move(edge: .leading).combined(with: .opacity))

@@ -41,7 +41,7 @@ struct SettingsView: View {
                 
                 // Sound Setting
                 SettingRow(
-                    title: "Enable Sound",
+                    title: "Sounds",
                     description: "Play sounds to signal the start and end of breaks.",
                     isEnabled: $playSound
                 )
@@ -51,8 +51,8 @@ struct SettingsView: View {
                 
                 // Overlay Setting
                 SettingRow(
-                    title: "Enable Test Overlay",
-                    description: "Show a small overlay in the top right corner when testing.",
+                    title: "Countdown Overlay",
+                    description: "Show a 10-second countdown overlay before the break starts.",
                     isEnabled: $showOverlay
                 )
             }
@@ -147,26 +147,27 @@ struct SettingRow: View {
     private let accentColor = Color(red: 0/255, green: 122/255, blue: 255/255)  // #007AFF
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundColor(.white)
                 
-                Text(description)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
-                    .lineSpacing(2)
+                Spacer()
+                
+                Toggle("", isOn: $isEnabled)
+                    .toggleStyle(.switch)
+                    .scaleEffect(0.8)
+                    .tint(accentColor)
+                    .padding(.leading, 48)
+                    .environment(\.colorScheme, .dark)
             }
             
-            Spacer()
-            
-            Toggle("", isOn: $isEnabled)
-                .toggleStyle(.switch)
-                .scaleEffect(0.8)
-                .tint(accentColor)
-                .padding(.leading, 48)
-                .environment(\.colorScheme, .dark)
+            Text(description)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(.white.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(nil)
         }
     }
 }

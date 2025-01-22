@@ -1,25 +1,19 @@
 import Cocoa
 import SwiftUI
 
-enum MellowError: LocalizedError {
-    case windowCreationFailed
-    case soundInitializationFailed
-    case timerInitializationFailed
+enum MellowError: Error {
     case invalidTechnique
     case customRuleNotConfigured
+    case timerInitializationFailed
     
-    var errorDescription: String? {
+    var localizedDescription: String {
         switch self {
-        case .windowCreationFailed:
-            return "Failed to create window"
-        case .soundInitializationFailed:
-            return "Failed to initialize sound"
-        case .timerInitializationFailed:
-            return "Failed to start timer"
         case .invalidTechnique:
-            return "Invalid break technique"
+            return "Invalid or empty technique selected"
         case .customRuleNotConfigured:
-            return "Custom rule not configured"
+            return "Custom rule interval not configured"
+        case .timerInitializationFailed:
+            return "Failed to initialize timer"
         }
     }
 }
@@ -39,7 +33,7 @@ class TimerState: ObservableObject {
     @Published var isPaused: Bool = false
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, ObservableObject {
     var statusItem: NSStatusItem?
     var blurWindow: NSWindow?
     var homeWindow: NSWindow?
@@ -66,13 +60,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let timerState = TimerState()
     @Published private var isAnimatingOut = false
     private var blurWindows: [NSWindow] = []  // Add array to track all blur windows
-    private var settingsOverlayWindow: NSWindow?
-    private var settingsBlurView: NSView?
-    private var customRuleOverlayView: NSView?
     @AppStorage("customInterval") var customInterval: TimeInterval = 1200 // Default 20 minutes
     @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
     private var pausedTimeRemaining: TimeInterval?
     var overlayDismissed = false
+    @Published var homeWindowInteractionDisabled = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -406,15 +398,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.updateTimer()
         }
         
-        // Set initial value in MM:SS format
-        let initialMinutes = Int(timeInterval) / 60
-        let initialSeconds = Int(timeInterval) % 60
-        updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
-        
         if let timer = timer {
             RunLoop.main.add(timer, forMode: .common)
+            updateTimer()
+            updateMenuBarTitle()
+        } else {
+            throw MellowError.timerInitializationFailed
         }
-        updateMainMenu()
     }
     
     @objc private func showHomeScreen() {
@@ -533,7 +523,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func playBreakSound() throws {
         if breakSound == nil {
             guard let sound = NSSound(named: "Glass") else {
-                throw MellowError.soundInitializationFailed
+                throw MellowError.timerInitializationFailed
             }
             breakSound = sound
         }
@@ -623,192 +613,62 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     @objc func showSettings() {
         if let homeWindow = homeWindow {
-            // Create overlay window
             let settingsView = SettingsView(onClose: { [weak self] in
-                self?.closeSettings()
+                self?.homeWindowInteractionDisabled = false
+                if let attachedSheet = homeWindow.attachedSheet {
+                    homeWindow.endSheet(attachedSheet)
+                }
             })
-            .environment(\.colorScheme, .dark)
             
             let hostingView = NSHostingView(rootView: settingsView)
-            hostingView.setFrameSize(hostingView.fittingSize)  // Size to fit content
+            let settingsController = NSViewController()
+            settingsController.view = hostingView
             
-            let overlayWindow = NSWindow(
-                contentRect: hostingView.frame,  // Use hosting view's size
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            
-            overlayWindow.backgroundColor = .clear
-            overlayWindow.isOpaque = false
-            overlayWindow.hasShadow = true
-            overlayWindow.level = .floating
-            
-            // Add corner radius to window
-            overlayWindow.contentView = hostingView
-            if let contentView = overlayWindow.contentView {
-                contentView.wantsLayer = true
-                contentView.layer?.cornerRadius = 12
-                contentView.layer?.masksToBounds = true
+            homeWindow.beginSheet(NSWindow(contentViewController: settingsController)) { _ in
+                // Sheet closed
             }
             
-            // Make overlay window move with main window
-            homeWindow.addChildWindow(overlayWindow, ordered: .above)
-            
-            // Position overlay centered on home window
-            positionSettingsOverlay(overlayWindow, relativeTo: homeWindow)
-            
-            // Store reference to overlay window
-            settingsOverlayWindow = overlayWindow
-            
-            // Add simple dimming overlay to home window
-            if let contentView = homeWindow.contentView {
-                let overlayView = NSView(frame: contentView.bounds)
-                overlayView.wantsLayer = true
-                
-                // Use black with 40% opacity for dark theme
-                overlayView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
-                
-                overlayView.alphaValue = 0
-                contentView.addSubview(overlayView)
-                
-                // Animate overlay in
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.2
-                    overlayView.animator().alphaValue = 1
-                }
-                
-                // Store reference to overlay view
-                settingsBlurView = overlayView
-            }
-            
-            // Show overlay
-            overlayWindow.makeKeyAndOrderFront(nil)
-        }
-    }
-    
-    private func positionSettingsOverlay(_ overlay: NSWindow, relativeTo parent: NSWindow) {
-        let parentFrame = parent.frame
-        let overlayFrame = overlay.frame
-        let x = parentFrame.origin.x + (parentFrame.width - overlayFrame.width) / 2
-        let y = parentFrame.origin.y + (parentFrame.height - overlayFrame.height) / 2
-        overlay.setFrameOrigin(NSPoint(x: x, y: y))
-    }
-    
-    private func closeSettings() {
-        // Animate overlay view out
-        if let overlayView = settingsBlurView {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                overlayView.animator().alphaValue = 0
-                
-                // Reset opacity of main window content
-                if let contentView = homeWindow?.contentView {
-                    contentView.animator().alphaValue = 1.0
-                }
-            } completionHandler: {
-                overlayView.removeFromSuperview()
-                self.settingsBlurView = nil
-                
-                // Close and cleanup overlay window
-                if let overlay = self.settingsOverlayWindow {
-                    self.homeWindow?.removeChildWindow(overlay)
-                    overlay.orderOut(nil)
-                    self.settingsOverlayWindow = nil
-                }
-            }
-        }
-    }
-    
-    // Add window delegate method to handle main window movement
-    func windowDidMove(_ notification: Notification) {
-        if let homeWindow = notification.object as? NSWindow,
-           homeWindow == self.homeWindow,
-           let overlay = settingsOverlayWindow {
-            positionSettingsOverlay(overlay, relativeTo: homeWindow)
+            homeWindowInteractionDisabled = true
         }
     }
     
     func showCustomRuleSettings() {
         if let homeWindow = homeWindow {
             let customRuleView = CustomRuleView(
-                onSave: { [weak self] newValue in
-                    self?.customInterval = newValue
-                    self?.isCustomRuleConfigured = true
-                    self?.timeInterval = newValue
-                    UserDefaults.standard.set(newValue, forKey: "breakInterval")
-                    self?.closeCustomRuleSettings()
+                onSave: { [weak self] interval in
+                    guard let self = self else { return }
+                    // Update the custom interval
+                    self.customInterval = interval
+                    
+                    // If Custom is the selected technique, update the current timeInterval
+                    if self.currentTechnique == "Custom" {
+                        self.timeInterval = interval
+                    }
+                    
+                    // Mark as configured and close the sheet
+                    self.isCustomRuleConfigured = true
+                    self.homeWindowInteractionDisabled = false
+                    if let attachedSheet = homeWindow.attachedSheet {
+                        homeWindow.endSheet(attachedSheet)
+                    }
                 },
                 onClose: { [weak self] in
-                    self?.closeCustomRuleSettings()
+                    self?.homeWindowInteractionDisabled = false
+                    if let attachedSheet = homeWindow.attachedSheet {
+                        homeWindow.endSheet(attachedSheet)
+                    }
                 }
             )
-            .environment(\.colorScheme, .dark)
             
             let hostingView = NSHostingView(rootView: customRuleView)
-            hostingView.setFrameSize(hostingView.fittingSize)
+            let customRuleController = NSViewController()
+            customRuleController.view = hostingView
             
-            let overlayWindow = NSWindow(
-                contentRect: hostingView.frame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            
-            overlayWindow.backgroundColor = NSColor.clear
-            overlayWindow.isOpaque = false
-            overlayWindow.hasShadow = true
-            overlayWindow.level = NSWindow.Level.floating
-            
-            overlayWindow.contentView = hostingView
-            if let contentView = overlayWindow.contentView {
-                contentView.wantsLayer = true
-                contentView.layer?.cornerRadius = 12
-                contentView.layer?.masksToBounds = true
+            homeWindow.beginSheet(NSWindow(contentViewController: customRuleController)) { _ in
+                // Sheet closed
             }
             
-            homeWindow.addChildWindow(overlayWindow, ordered: .above)
-            positionSettingsOverlay(overlayWindow, relativeTo: homeWindow)
-            
-            // Add dimming overlay
-            if let contentView = homeWindow.contentView {
-                let overlayView = NSView(frame: contentView.bounds)
-                overlayView.wantsLayer = true
-                overlayView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
-                overlayView.alphaValue = 0
-                contentView.addSubview(overlayView)
-                
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.2
-                    overlayView.animator().alphaValue = 1
-                }
-                
-                customRuleOverlayView = overlayView
-            }
-            
-            customRuleWindow = overlayWindow
-            overlayWindow.makeKeyAndOrderFront(nil)
-        }
-    }
-    
-    private func closeCustomRuleSettings() {
-        if let overlayView = customRuleOverlayView {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                overlayView.animator().alphaValue = 0
-                
-                // Reset window opacity
-                homeWindow?.animator().alphaValue = 1.0
-            } completionHandler: {
-                overlayView.removeFromSuperview()
-                self.customRuleOverlayView = nil
-                
-                if let overlay = self.customRuleWindow {
-                    self.homeWindow?.removeChildWindow(overlay)
-                    overlay.orderOut(nil)
-                    self.customRuleWindow = nil
-                }
-            }
+            homeWindowInteractionDisabled = true
         }
     }
     
@@ -818,14 +678,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 throw MellowError.invalidTechnique
             }
             
+            // Reset state first
+            timer?.invalidate()
+            timer = nil
+            timerState.isPaused = false
+            pausedTimeRemaining = nil
+            
+            // Set the current technique first
             currentTechnique = technique
             
+            // Initialize timeInterval based on technique
             switch technique {
             case "20-20-20 Rule":
                 timeInterval = 1200  // 20 minutes
             case "Pomodoro Technique":
                 timeInterval = 1500  // 25 minutes
-                // Only set count to 1 when starting fresh (count = 0), not when resetting
                 if pomodoroCount == 0 {
                     pomodoroCount = 1
                     print("🍅 Starting Pomodoro - Count: 1/4")
@@ -833,26 +700,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     print("🍅 Timer reset - Continuing at Count: \(pomodoroCount)/4")
                 }
             case "Custom":
+                // Ensure we have a valid custom interval
+                guard customInterval > 0 else {
+                    throw MellowError.customRuleNotConfigured
+                }
                 timeInterval = customInterval
             default:
-                if let lastInterval = lastUsedInterval,
-                   let lastBreakDuration = lastUsedBreakDuration {
-                    timeInterval = lastInterval
-                    shortBreakDuration = lastBreakDuration
-                } else {
-                    throw MellowError.invalidTechnique
-                }
+                throw MellowError.invalidTechnique
             }
             
-            // Set initial countdown value without starting timer
+            // Set next break time
             nextBreakTime = Date().addingTimeInterval(timeInterval)
-            let initialMinutes = Int(timeInterval) / 60
-            let initialSeconds = Int(timeInterval) % 60
-            timerState.timeString = String(format: "%d:%02d", initialMinutes, initialSeconds)
             
-            try startTimer()
+            // Create and start timer
+            let newTimer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                self?.updateTimer()
+            }
+            
+            // Add timer to run loop
+            RunLoop.main.add(newTimer, forMode: .common)
+            timer = newTimer
+            
+            // Update display
+            updateTimer()
+            updateMenuBarTitle()
             
         } catch {
+            // Reset state on error
+            timer?.invalidate()
+            timer = nil
+            timerState.isPaused = false
+            pausedTimeRemaining = nil
+            nextBreakTime = nil
+            currentTechnique = nil
+            
             handleError(error)
         }
     }
@@ -1113,26 +994,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 showTestBlurScreen(timeRemaining: timeRemaining)
             }
             
-            // Show only seconds if less than 1 minute
+            // Update timer state and menu bar
+            let newTimeString: String
             if minutes == 0 {
-                timerState.timeString = String(format: "%ds", seconds)
-                if let button = statusItem?.button {
-                    button.title = String(format: " %ds", seconds)
-                }
+                newTimeString = String(format: "%ds", seconds)
             } else {
-                timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                if let button = statusItem?.button {
-                    button.title = String(format: " %d:%02d", minutes, seconds)
+                newTimeString = String(format: "%d:%02d", minutes, seconds)
+            }
+            
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.timerState.timeString = newTimeString
+                if let button = self.statusItem?.button {
+                    button.title = " \(newTimeString)"
                 }
             }
         } else {
-            timerState.timeString = "0"
-            if let button = statusItem?.button {
-                button.title = " 0"
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.timerState.timeString = "0"
+                if let button = self.statusItem?.button {
+                    button.title = " 0"
+                }
+                
+                self.showBlurScreen(forTechnique: self.currentTechnique)
+                self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
             }
-            
-            showBlurScreen(forTechnique: currentTechnique)
-            nextBreakTime = Date().addingTimeInterval(timeInterval)
         }
     }
     

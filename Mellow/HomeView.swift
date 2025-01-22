@@ -105,7 +105,7 @@ struct PresetCard: View {
                     
                     // Timer controls and settings button
                     if isSelected {
-                        HStack(spacing: 16) {
+                        HStack(spacing: 8) {
                             Button(action: onStartStop) {
                                 HStack(spacing: 8) {
                                     if isRunning {
@@ -183,7 +183,8 @@ struct HomeView: View {
     @State private var selectedPreset: String = "20-20-20 Rule"
     @State private var isRunning = false
     @State private var isFooterVisible = false
-    @State private var isContentVisible = false  // Add state for main content animation
+    @State private var isContentVisible = false
+    @State private var isModalPresented = false
     @Namespace private var animation
     
     init(
@@ -327,71 +328,62 @@ struct HomeView: View {
             .opacity(isContentVisible ? 1 : 0)
             .scaleEffect(isContentVisible ? 1 : 0.8)
             
-            Spacer().frame(height: 8)
-            
-            // Cloud image and footer
-            ZStack(alignment: .bottom) {
-                Image("cloud")
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 480)
-                    .opacity(0.8)
-                    .frame(maxWidth: .infinity, alignment: .bottomLeading)
-                
-                // Footer section
-                HStack {
-                    // Left - Menu bar info
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "menubar.arrow.up.rectangle")
-                                .font(.system(size: 13))
-                                .foregroundColor(.black.opacity(0.6))
-                            
-                            Text("Mellow lives in the menu bar")
-                                .font(.system(size: 13, weight: .regular, design: .rounded))
-                                .foregroundColor(.black.opacity(0.6))
-                        }
+            // Footer section
+            HStack {
+                // Left - Menu bar info
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "menubar.arrow.up.rectangle")
+                            .font(.system(size: 13))
+                            .foregroundColor(.black.opacity(0.6))
                         
-                        Text("Click the icon in the menu to access Mellow")
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
-                            .foregroundColor(.black.opacity(0.4))
-                            .multilineTextAlignment(.leading)
+                        Text("Mellow lives in the menu bar")
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundColor(.black.opacity(0.6))
                     }
                     
-                    Spacer()
-                    
-                    // Right side - Settings icon
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 17))
-                        .foregroundColor(.black.opacity(0.5))
-                        .onTapGesture {
-                            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                appDelegate.showSettings()
-                            }
-                        }
+                    Text("Click the icon in the menu to access Mellow")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundColor(.black.opacity(0.4))
+                        .multilineTextAlignment(.leading)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                
+                Spacer()
+                
+                // Right side - Settings icon
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 17))
+                    .foregroundColor(.black.opacity(0.5))
+                    .onTapGesture {
+                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                            appDelegate.showSettings()
+                        }
+                    }
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
             .offset(y: isFooterVisible ? 0 : 100)
             .opacity(isFooterVisible ? 1 : 0)
             .blur(radius: isFooterVisible ? 0 : 10)
         }
         .padding(.top, 24)
-        .frame(minWidth: 700)
+        .frame(minWidth: 640)
         .fixedSize(horizontal: false, vertical: true)
         .background(
-            Rectangle()
-                .foregroundColor(.clear)
-                .background(
-                    LinearGradient(
-                        stops: [
-                            Gradient.Stop(color: Color(red: 0.4, green: 0.75, blue: 1).opacity(0.8), location: 0.00),
-                            Gradient.Stop(color: .white.opacity(0.8), location: 1.00),
-                        ],
-                        startPoint: UnitPoint(x: 0.5, y: 0),
-                        endPoint: UnitPoint(x: 0.5, y: 0.72)
-                    )
+            ZStack {
+                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                
+                LinearGradient(
+                    stops: [
+                        Gradient.Stop(color: Color(red: 0.4, green: 0.75, blue: 1).opacity(0.8), location: 0.00),
+                        Gradient.Stop(color: .white.opacity(0.6), location: 1.00),
+                    ],
+                    startPoint: UnitPoint(x: 0.5, y: 0),
+                    endPoint: UnitPoint(x: 0.5, y: 0.72)
                 )
+                .ignoresSafeArea()
+            }
         )
         .onAppear {
             // Animate content first, then footer
@@ -416,6 +408,12 @@ struct HomeView: View {
                 ) {
                     isFooterVisible = true
                 }
+            }
+        }
+        .allowsHitTesting(!isModalPresented)
+        .onChange(of: isModalPresented) { oldValue, newValue in
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.homeWindowInteractionDisabled = newValue
             }
         }
     }
