@@ -347,11 +347,11 @@ struct BlurView: View {
                     VStack(spacing: 16) {
                         VStack(spacing: 8) {
                             Text("Break starts in")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                             
                             Text("\(Int(timeRemaining))s")
-                                .font(.system(size: 64, weight: .bold, design: .rounded))
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                         }
                         
@@ -364,12 +364,12 @@ struct BlurView: View {
                             }) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "forward.fill")
-                                        .font(.system(size: 12, weight: .medium))
+                                        .font(.system(size: 15, weight: .medium))
                                     Text("Skip")
-                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .font(.system(size: 15, weight: .medium, design: .rounded))
                                 }
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, 4)
                                 .padding(.vertical, 8)
                             }
                             .buttonStyle(PillButtonStyle(
@@ -383,9 +383,9 @@ struct BlurView: View {
                                 }
                             }) {
                                 Text("Take Break Now")
-                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
+                                    .padding(.horizontal, 4)
                                     .padding(.vertical, 8)
                             }
                             .buttonStyle(PillButtonStyle(

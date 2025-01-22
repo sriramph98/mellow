@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct OverlayView: View {
-    let technique: String
     @State private var timeRemaining: TimeInterval = 10
     @Binding var isAnimatingOut: Bool
     @State var isAppearing = false
@@ -10,24 +9,23 @@ struct OverlayView: View {
     @State private var progress: Double = 1.0
     let onComplete: () -> Void
     
-    private var breakDescription: String {
-        switch technique {
-        case "20-20-20 Rule":
-            return "20 second eye break"
-        case "Pomodoro Technique":
-            return "5 minute break"
-        case "Custom":
-            return "break"
-        default:
-            return "break"
-        }
-    }
-    
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 0) {
                 // Top section with dismiss button
                 HStack {
+                    // Mellow title with icon
+                    HStack(spacing: 4) {
+                        Image("menuBarIcon")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 17, height: 17)
+                        Text("Mellow")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(.leading, 24)
+                    
                     Spacer()
                     ZStack {
                         // Timeout circle
@@ -55,21 +53,23 @@ struct OverlayView: View {
                 
                 // Content section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\(breakDescription) starts in")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    Text("Break starts in")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
                     Text("\(Int(timeRemaining))s")
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
                 
+                Spacer()
+                
                 // Bottom section with buttons
                 HStack {
                     Spacer()
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 isAnimatingOut = true
@@ -80,11 +80,11 @@ struct OverlayView: View {
                                 Image(systemName: "forward.fill")
                                     .font(.system(size: 12, weight: .medium))
                                 Text("Skip")
-                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            
+                            
                         }
                         .buttonStyle(PillButtonStyle(
                             customBackground: Color.white.opacity(0.2)
@@ -98,10 +98,8 @@ struct OverlayView: View {
                             onComplete()
                         }) {
                             Text("Take Break Now")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
                         }
                         .buttonStyle(PillButtonStyle(
                             customBackground: Color.white.opacity(0.2)
@@ -116,6 +114,10 @@ struct OverlayView: View {
             VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
                 timeRemaining -= 1
@@ -147,4 +149,13 @@ struct OverlayView: View {
         }
         .opacity(isAppearing ? 1 : 0)
     }
+}
+
+#Preview {
+    OverlayView(
+        isAnimatingOut: .constant(false),
+        onComplete: {}
+    )
+    .frame(width: 360)
+    .background(Color.black)
 } 

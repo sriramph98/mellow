@@ -1114,7 +1114,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 window.backgroundColor = .clear
                 
                 let overlayView = OverlayView(
-                    technique: currentTechnique ?? "Custom",
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
                         set: { [weak self] newValue in 
@@ -1131,10 +1130,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         }
                     ),
                     onComplete: { [weak self] in
-                        // Show the blur view for the selected technique
+                        // Take a break immediately
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                            if let technique = self?.currentTechnique {
-                                self?.showBlurScreen(forTechnique: technique)
+                            if let self = self {
+                                // Reset the timer
+                                self.timer?.invalidate()
+                                self.timer = nil
+                                
+                                // Show blur screen immediately
+                                self.showBlurScreen(forTechnique: self.currentTechnique)
+                                
+                                // Set next break time
+                                self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                                
+                                // Restart the timer
+                                self.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                                    self?.updateTimer()
+                                }
+                                RunLoop.main.add(self.timer!, forMode: .common)
+                                
+                                // Update initial display
+                                let initialMinutes = Int(self.timeInterval) / 60
+                                let initialSeconds = Int(self.timeInterval) % 60
+                                self.updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
                             }
                         }
                     }
