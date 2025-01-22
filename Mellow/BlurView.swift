@@ -179,7 +179,7 @@ struct BlurView: View {
         
         let duration: TimeInterval
         if testMode {
-            duration = 5 // 5 second timeout for test mode
+            duration = 10 // 10 second timeout for test mode
         } else {
             switch technique {
             case "20-20-20 Rule":
@@ -344,45 +344,56 @@ struct BlurView: View {
             if testMode {
                 // Simple widget-style view for test mode
                 ZStack {
-                    VStack(spacing: 0) {
-                        Text("Test Text")
-                            .font(.system(size: 24, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    
-                    // Dismiss button with timeout indicator
-                    VStack {
-                        HStack {
-                            Spacer()
-                            ZStack {
-                                // Timeout circle with smooth animation
-                                Circle()
-                                    .trim(from: 0, to: progress)
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
-                                    .rotationEffect(.degrees(-90))
-                                    .frame(width: 24, height: 24)
-                                
-                                // X mark button
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        isAnimatingOut = true
-                                        isAppearing = false
-                                    }
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(8)
+                    VStack(spacing: 16) {
+                        VStack(spacing: 8) {
+                            Text("Break starts in")
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            
+                            Text("\(Int(timeRemaining))s")
+                                .font(.system(size: 64, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
                         }
-                        Spacer()
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isAnimatingOut = true
+                                    isAppearing = false
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "forward.fill")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text("Skip")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                            }
+                            .buttonStyle(PillButtonStyle(
+                                customBackground: Color.white.opacity(0.2)
+                            ))
+                            
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isAnimatingOut = true
+                                    isAppearing = false
+                                }
+                            }) {
+                                Text("Take Break Now")
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(PillButtonStyle(
+                                customBackground: Color.white.opacity(0.2)
+                            ))
+                        }
                     }
+                    .padding(24)
                 }
                 .background(
                     VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
@@ -579,7 +590,7 @@ struct BlurView: View {
         }
         .onAppear {
             progress = 1.0
-            timeRemaining = testMode ? 5 : timeRemaining
+            timeRemaining = testMode ? 10 : timeRemaining
             isAppearing = false
             
             withAnimation(

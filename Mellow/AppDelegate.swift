@@ -1053,6 +1053,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let minutes = Int(timeRemaining) / 60
             let seconds = Int(timeRemaining) % 60
             
+            // Show overlay when 10 seconds remaining
+            if timeRemaining <= 10 && blurWindow == nil && !timerState.isPaused {
+                showTestBlurScreen()
+            }
+            
             // Show only seconds if less than 1 minute
             if minutes == 0 {
                 timerState.timeString = String(format: "%ds", seconds)
@@ -1094,17 +1099,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if let screen = NSScreen.screens.first(where: { screen in
                 screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
             }) {
-                // Medium widget dimensions (approximately 273 x 148 points)
-                let windowWidth: CGFloat = 273
-                let windowHeight: CGFloat = 148
+                // Get menu bar height and add padding
+                let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 24
+                let topPadding: CGFloat = 16 // Space below menu bar
                 
-                // Position in top right with padding
-                let padding: CGFloat = 20
-                let windowX = screen.frame.maxX - windowWidth - padding
-                let windowY = screen.frame.maxY - windowHeight - padding
-                
-                let frame = NSRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight)
-                let window = try createBlurWindow(frame: frame)
+                // Create window with dynamic size
+                let window = try createBlurWindow(frame: .zero)
                 
                 // Configure window
                 window.level = .floating
@@ -1113,10 +1113,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 window.hasShadow = true
                 window.backgroundColor = .clear
                 
-                let blurView = BlurView(
-                    technique: "Test",
-                    screen: screen,
-                    pomodoroCount: 0,
+                let overlayView = OverlayView(
+                    technique: currentTechnique ?? "Custom",
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
                         set: { [weak self] newValue in 
@@ -1132,10 +1130,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             }
                         }
                     ),
-                    showContent: true,
-                    testMode: true
+                    onComplete: { [weak self] in
+                        // Show the blur view for the selected technique
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                            if let technique = self?.currentTechnique {
+                                self?.showBlurScreen(forTechnique: technique)
+                            }
+                        }
+                    }
                 )
-                window.contentView = NSHostingView(rootView: blurView)
+                
+                // Create hosting view and size window to fit content
+                let hostingView = NSHostingView(rootView: overlayView)
+                window.contentView = hostingView
+                hostingView.setFrameSize(hostingView.fittingSize)
+                window.setContentSize(hostingView.fittingSize)
+                
+                // Position window
+                let windowX = screen.frame.maxX - window.frame.width - 20
+                let windowY = screen.frame.maxY - window.frame.height - (menuBarHeight + topPadding)
+                window.setFrameOrigin(NSPoint(x: windowX, y: windowY))
+                
                 window.makeKeyAndOrderFront(nil)
                 
                 blurWindows.append(window)
