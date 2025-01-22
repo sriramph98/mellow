@@ -106,8 +106,8 @@ struct CustomRuleView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            // Header - removed close button
+        VStack(alignment: .leading, spacing: 24) {
+            // Header with close button
             HStack {
                 Text("Custom Rule")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
@@ -115,7 +115,7 @@ struct CustomRuleView: View {
                 
                 Spacer()
                 
-                Button(action: dismissSettings) {
+                Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 24))
                         .foregroundColor(.white.opacity(0.6))
@@ -124,135 +124,85 @@ struct CustomRuleView: View {
                 .frame(width: 32, height: 32)
             }
             
-            // Settings content
-            VStack(alignment: .leading, spacing: 48) {
-                // Break Interval Section
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
+            // Settings List
+            VStack(alignment: .leading, spacing: 24) {
+                // Break Interval Setting
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
                         Text("Break Interval")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                         
-                        Text("How often should we remind you to take a break?")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
-                            .foregroundColor(.white.opacity(0.6))
+                        Spacer()
+                        
+                        Text(formatTime(reminderInterval))
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                            .monospacedDigit()
                     }
                     
-                    VStack(spacing: 8) {
-                        CustomSlider(
-                            range: 1...60,
-                            value: Binding(
-                                get: { Double(reminderInterval) / 60.0 },
-                                set: { reminderInterval = Int($0 * 60) }
-                            )
-                        )
-                        .frame(height: 20)
-                        
-                        if isEditingInterval {
-                            TextField("", text: $tempIntervalText)
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .textFieldStyle(.plain)
-                                .onAppear {
-                                    tempIntervalText = String(format: "%d:%02d",
-                                                            Int(reminderInterval) / 60,
-                                                            Int(reminderInterval) % 60)
-                                }
-                                .onSubmit {
-                                    if let newValue = parseTimeInput(tempIntervalText) {
-                                        reminderInterval = newValue
-                                    }
-                                    isEditingInterval = false
-                                }
-                                .focused($isEditingInterval)
-                        } else {
-                            Text(String(format: "%02dm %02ds",
-                                      Int(reminderInterval) / 60,
-                                      Int(reminderInterval) % 60))
-                                .font(.system(size: 24, weight: .medium, design: .rounded))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .onTapGesture {
-                                    isEditingInterval = true
-                                }
-                        }
-                    }
+                    Text("How often should we remind you to take a break?")
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(nil)
+                    
+                    CustomSlider(range: 1...120, value: Binding(
+                        get: { Double(reminderInterval) / 60.0 },
+                        set: { reminderInterval = Int($0 * 60) }
+                    ))
+                    .frame(height: 20)
                 }
                 
-                // Break Duration Section
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                
+                // Break Duration Setting
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
                         Text("Break Duration")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                         
-                        Text("How long should each break last?")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.6))
+                        Spacer()
+                        
+                        Text(formatTime(breakDuration))
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                            .monospacedDigit()
                     }
                     
-                    VStack(spacing: 8) {
-                        CustomSlider(
-                            range: 0.5...30,
-                            value: breakDurationInMinutes
-                        )
+                    Text("How long should each break last?")
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(nil)
+                    
+                    CustomSlider(range: 0.5...30, value: breakDurationInMinutes)
                         .frame(height: 20)
-                        
-                        if isEditingBreakDuration {
-                            TextField("", text: $tempBreakDurationText)
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .textFieldStyle(.plain)
-                                .onAppear {
-                                    tempBreakDurationText = String(format: "%d:%02d",
-                                                                 Int(breakDuration) / 60,
-                                                                 Int(breakDuration) % 60)
-                                }
-                                .onSubmit {
-                                    if let newValue = parseTimeInput(tempBreakDurationText) {
-                                        breakDuration = newValue
-                                    }
-                                    isEditingBreakDuration = false
-                                }
-                                .focused($isEditingBreakDuration)
-                        } else {
-                            Text(String(format: "%02dm %02ds",
-                                      Int(breakDuration) / 60,
-                                      Int(breakDuration) % 60))
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .onTapGesture {
-                                    isEditingBreakDuration = true
-                                }
-                        }
-                    }
                 }
             }
             
             Spacer()
             
-            // Apply button
-            HStack {
-                Spacer()
-                Button(action: saveAndClose) {
-                    Text("Apply")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                }
-                .buttonStyle(PillButtonStyle())
-                .keyboardShortcut(.defaultAction)
+            // Apply Button
+            Button(action: {
+                onSave(TimeInterval(reminderInterval))
+            }) {
+                Text("Apply")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
             }
+            .buttonStyle(PillButtonStyle(customBackground: accentColor))
         }
-        .padding(32)
-        .frame(width: 400)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 24)
+        .frame(width: 360)
         .background(
-            ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                Color(.windowBackgroundColor).opacity(0.3)  // Reduced opacity to let blur show through
-            }
+            VisualEffectView(material: .dark, blendingMode: .behindWindow)
+                .edgesIgnoringSafeArea(.all)
         )
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
@@ -272,25 +222,10 @@ struct CustomRuleView: View {
         }
     }
     
-    private func dismissSettings() {
-        withAnimation(
-            .spring(
-                response: 0.3,
-                dampingFraction: 0.65,
-                blendDuration: 0
-            )
-        ) {
-            isAppearing = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            onClose()
-        }
-    }
-    
-    private func saveAndClose() {
-        onSave(TimeInterval(reminderInterval))
-        dismissSettings()
+    private func formatTime(_ time: Int) -> String {
+        let minutes = time / 60
+        let seconds = time % 60
+        return String(format: "%02dm %02ds", minutes, seconds)
     }
 }
 
