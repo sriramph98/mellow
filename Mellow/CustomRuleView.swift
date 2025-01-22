@@ -21,12 +21,10 @@ struct CustomSlider: NSViewRepresentable {
         slider.isEnabled = true
         slider.isContinuous = true
         
-        // Set to linear style with tick marks
+        // Set to linear style without tick marks
         slider.sliderType = .linear
         slider.controlSize = .regular
-        slider.numberOfTickMarks = 5
-        slider.allowsTickMarkValuesOnly = false
-        slider.tickMarkPosition = .below
+        slider.numberOfTickMarks = 0
         
         // Ensure the slider is properly layered
         slider.wantsLayer = true
@@ -36,7 +34,18 @@ struct CustomSlider: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSSlider, context: Context) {
-        nsView.doubleValue = value
+        // Snap to nearest 30-second interval
+        let valueInSeconds = nsView.doubleValue * 60
+        let snappedSeconds = round(valueInSeconds / 30) * 30
+        let snappedValue = snappedSeconds / 60
+        
+        if value != snappedValue {
+            DispatchQueue.main.async {
+                value = snappedValue
+            }
+        }
+        
+        nsView.doubleValue = snappedValue
         nsView.trackFillColor = accentColor
     }
     
@@ -52,7 +61,12 @@ struct CustomSlider: NSViewRepresentable {
         }
         
         @objc func valueChanged(_ sender: NSSlider) {
-            slider.value = sender.doubleValue
+            // Snap to nearest 30-second interval
+            let valueInSeconds = sender.doubleValue * 60
+            let snappedSeconds = round(valueInSeconds / 30) * 30
+            let snappedValue = snappedSeconds / 60
+            
+            slider.value = snappedValue
         }
     }
 }
