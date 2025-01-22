@@ -4,10 +4,18 @@ struct OverlayView: View {
     @State private var timeRemaining: TimeInterval = 10
     @Binding var isAnimatingOut: Bool
     @State var isAppearing = false
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
     private let progressTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     @State private var progress: Double = 1.0
     let onComplete: () -> Void
+    let initialTimeRemaining: TimeInterval
+    
+    init(isAnimatingOut: Binding<Bool>, initialTimeRemaining: TimeInterval = 10, onComplete: @escaping () -> Void) {
+        self._isAnimatingOut = isAnimatingOut
+        self.onComplete = onComplete
+        self.initialTimeRemaining = initialTimeRemaining
+        self._timeRemaining = State(initialValue: initialTimeRemaining)
+    }
     
     var body: some View {
         ZStack {
@@ -37,10 +45,10 @@ struct OverlayView: View {
                         
                         // X mark button
                         Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
                                 isAnimatingOut = true
-                                isAppearing = false
                             }
+                            (NSApplication.shared.delegate as? AppDelegate)?.overlayDismissed = true
                         }) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 20))
@@ -71,9 +79,20 @@ struct OverlayView: View {
                     Spacer()
                     HStack(spacing: 8) {
                         Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
                                 isAnimatingOut = true
-                                isAppearing = false
+                            }
+                            // Skip and restart timer
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                    appDelegate.overlayDismissed = true
+                                    appDelegate.nextBreakTime = Date().addingTimeInterval(appDelegate.timeInterval)
+                                    // Create and start timer
+                                    appDelegate.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak appDelegate] _ in
+                                        appDelegate?.updateTimer()
+                                    }
+                                    RunLoop.main.add(appDelegate.timer!, forMode: .common)
+                                }
                             }
                         }) {
                             HStack(spacing: 4) {
@@ -83,8 +102,6 @@ struct OverlayView: View {
                                     .font(.system(size: 13, weight: .medium, design: .rounded))
                             }
                             .foregroundColor(.white)
-                            
-                            
                         }
                         .buttonStyle(PillButtonStyle(
                             customBackground: Color.white.opacity(0.2)
@@ -93,7 +110,6 @@ struct OverlayView: View {
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 isAnimatingOut = true
-                                isAppearing = false
                             }
                             onComplete()
                         }) {
@@ -120,40 +136,33 @@ struct OverlayView: View {
         )
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
-                timeRemaining -= 1
+                timeRemaining = max(0, timeRemaining - 0.5)
             }
             if timeRemaining <= 0 {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isAnimatingOut = true
-                    isAppearing = false
                 }
                 onComplete()
             }
         }
         .onReceive(progressTimer) { _ in
             withAnimation(.linear(duration: 0.1)) {
-                progress = max(0, Double(timeRemaining) / 10.0)
+                progress = max(0, Double(timeRemaining) / initialTimeRemaining)
             }
         }
         .onAppear {
-            isAppearing = false
-            withAnimation(
-                .spring(
-                    response: 0.3,
-                    dampingFraction: 0.65,
-                    blendDuration: 0
-                )
-            ) {
-                isAppearing = true
-            }
+            isAppearing = true
         }
-        .opacity(isAppearing ? 1 : 0)
+        .opacity(isAnimatingOut ? 0 : 1)
+        .blur(radius: isAnimatingOut ? 10 : 0)
+        .animation(.easeInOut(duration: 0.3), value: isAnimatingOut)
     }
 }
 
 #Preview {
     OverlayView(
         isAnimatingOut: .constant(false),
+        initialTimeRemaining: 10,
         onComplete: {}
     )
     .frame(width: 360)

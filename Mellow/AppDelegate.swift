@@ -52,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             updateMenuBarTitle()
         }
     }
-    private var nextBreakTime: Date?
+    var nextBreakTime: Date?
     private var currentTechnique: String?
     private var shortBreakDuration: TimeInterval = 300  // 5 minutes
     private var longBreakDuration: TimeInterval = 1800  // 30 minutes
@@ -72,6 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @AppStorage("customInterval") var customInterval: TimeInterval = 1200 // Default 20 minutes
     @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
     private var pausedTimeRemaining: TimeInterval?
+    var overlayDismissed = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -163,7 +164,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         homeWindow?.appearance = NSAppearance(named: .darkAqua)
         homeWindow?.isMovableByWindowBackground = true
         homeWindow?.titlebarAppearsTransparent = true
-        homeWindow?.titleVisibility = .hidden
+        homeWindow?.titleVisibility = .visible
         homeWindow?.backgroundColor = .clear
         homeWindow?.isOpaque = false
         homeWindow?.hasShadow = true
@@ -379,7 +380,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let initialSeconds = Int(timeInterval) % 60
         updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
         
-        RunLoop.main.add(timer!, forMode: .common)
+        if let timer = timer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
         updateMainMenu()
     }
     
@@ -431,7 +434,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     pomodoroCount: currentCount,
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
-                        set: { self.isAnimatingOut = $0 }
+                        set: { [weak self] newValue in 
+                            self?.isAnimatingOut = newValue
+                            if newValue {
+                                // Clear the window references after animation
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                                    self?.blurWindow?.orderOut(nil)
+                                    self?.blurWindow = nil
+                                    self?.blurWindows.forEach { $0.orderOut(nil) }
+                                    self?.blurWindows.removeAll()
+                                    // Restart timer after break
+                                    self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
+                                    self?.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                                        self?.updateTimer()
+                                    }
+                                    if let timer = self?.timer {
+                                        RunLoop.main.add(timer, forMode: .common)
+                                    }
+                                }
+                            }
+                        }
                     ),
                     showContent: isInternalDisplay  // Show content only on internal display
                 )
@@ -1028,7 +1050,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
                     self?.updateTimer()
                 }
-                RunLoop.main.add(timer!, forMode: .common)
+                if let timer = timer {
+                    RunLoop.main.add(timer, forMode: .common)
+                }
             }
         } else {
             // Pause timer
@@ -1044,7 +1068,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateMenuBarTitle()
     }
     
-    private func updateTimer() {
+    func updateTimer() {
         guard let nextBreak = nextBreakTime else { return }
         
         let timeRemaining = nextBreak.timeIntervalSinceNow
@@ -1055,7 +1079,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // Show overlay when 10 seconds remaining
             if timeRemaining <= 10 && blurWindow == nil && !timerState.isPaused {
-                showTestBlurScreen()
+                showTestBlurScreen(timeRemaining: timeRemaining)
             }
             
             // Show only seconds if less than 1 minute
@@ -1081,7 +1105,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     
-    func showTestBlurScreen() {
+    func showTestBlurScreen(timeRemaining: TimeInterval = 10) {
         do {
             // Check if overlay is enabled
             guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
@@ -1094,6 +1118,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             
             // Reset animation state
             isAnimatingOut = false
+            overlayDismissed = false
             
             // Only create window for built-in display
             if let screen = NSScreen.screens.first(where: { screen in
@@ -1112,6 +1137,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 window.isMovableByWindowBackground = false
                 window.hasShadow = true
                 window.backgroundColor = .clear
+                window.title = "Mellow"  // Add title for Mission Control
                 
                 let overlayView = OverlayView(
                     isAnimatingOut: .init(
@@ -1129,6 +1155,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             }
                         }
                     ),
+                    initialTimeRemaining: timeRemaining,
                     onComplete: { [weak self] in
                         // Take a break immediately
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -1140,23 +1167,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                 // Show blur screen immediately
                                 self.showBlurScreen(forTechnique: self.currentTechnique)
                                 
-                                // Set next break time
-                                self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                                
-                                // Restart the timer
-                                self.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
-                                    self?.updateTimer()
-                                }
-                                RunLoop.main.add(self.timer!, forMode: .common)
-                                
-                                // Update initial display
-                                let initialMinutes = Int(self.timeInterval) / 60
-                                let initialSeconds = Int(self.timeInterval) % 60
-                                self.updateTimeString(String(format: "%d:%02d", initialMinutes, initialSeconds))
+                                // Set next break time but don't start timer yet
+                                self.nextBreakTime = nil
                             }
                         }
                     }
                 )
+                    .frame(width: 420)  // Fixed width for overlay
                 
                 // Create hosting view and size window to fit content
                 let hostingView = NSHostingView(rootView: overlayView)
