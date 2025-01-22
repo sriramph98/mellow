@@ -63,6 +63,10 @@ struct CustomRuleView: View {
     let onSave: (TimeInterval) -> Void
     let onClose: () -> Void
     @State private var isAppearing = false
+    @FocusState private var isEditingBreakDuration: Bool
+    @FocusState private var isEditingInterval: Bool
+    @State private var tempBreakDurationText = ""
+    @State private var tempIntervalText = ""
     
     private var breakDurationInMinutes: Binding<Double> {
         Binding(
@@ -74,9 +78,22 @@ struct CustomRuleView: View {
     // Create a custom accent color
     private let accentColor = Color(red: 0/255, green: 122/255, blue: 255/255)  // #007AFF
     
+    // Add helper function to format and validate time input
+    private func parseTimeInput(_ input: String) -> Int? {
+        let components = input.components(separatedBy: ":")
+        if components.count == 2,
+           let minutes = Int(components[0]),
+           let seconds = Int(components[1]),
+           minutes >= 0, minutes <= 30,
+           seconds >= 0, seconds < 60 {
+            return minutes * 60 + seconds
+        }
+        return nil
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
-            // Header with close button
+            // Header - removed close button
             HStack {
                 Text("Custom Rule")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
@@ -117,13 +134,35 @@ struct CustomRuleView: View {
                         )
                         .frame(height: 20)
                         
-                        Text(String(format: "%02dm %02ds", 
-                             Int(reminderInterval) / 60,  // Minutes
-                             Int(reminderInterval) % 60   // Seconds
-                        ))
-                            .font(.system(size: 24, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        if isEditingInterval {
+                            TextField("", text: $tempIntervalText)
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .textFieldStyle(.plain)
+                                .onAppear {
+                                    tempIntervalText = String(format: "%d:%02d",
+                                                            Int(reminderInterval) / 60,
+                                                            Int(reminderInterval) % 60)
+                                }
+                                .onSubmit {
+                                    if let newValue = parseTimeInput(tempIntervalText) {
+                                        reminderInterval = newValue
+                                    }
+                                    isEditingInterval = false
+                                }
+                                .focused($isEditingInterval)
+                        } else {
+                            Text(String(format: "%02dm %02ds",
+                                      Int(reminderInterval) / 60,
+                                      Int(reminderInterval) % 60))
+                                .font(.system(size: 24, weight: .medium, design: .rounded))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .onTapGesture {
+                                    isEditingInterval = true
+                                }
+                        }
                     }
                 }
                 
@@ -141,18 +180,40 @@ struct CustomRuleView: View {
                     
                     VStack(spacing: 8) {
                         CustomSlider(
-                            range: 0.5...10,
+                            range: 0.5...30,
                             value: breakDurationInMinutes
                         )
                         .frame(height: 20)
                         
-                        Text(String(format: "%02dm %02ds", 
-                             Int(breakDuration) / 60,     // Minutes
-                             Int(breakDuration) % 60      // Seconds
-                        ))
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        if isEditingBreakDuration {
+                            TextField("", text: $tempBreakDurationText)
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .textFieldStyle(.plain)
+                                .onAppear {
+                                    tempBreakDurationText = String(format: "%d:%02d",
+                                                                 Int(breakDuration) / 60,
+                                                                 Int(breakDuration) % 60)
+                                }
+                                .onSubmit {
+                                    if let newValue = parseTimeInput(tempBreakDurationText) {
+                                        breakDuration = newValue
+                                    }
+                                    isEditingBreakDuration = false
+                                }
+                                .focused($isEditingBreakDuration)
+                        } else {
+                            Text(String(format: "%02dm %02ds",
+                                      Int(breakDuration) / 60,
+                                      Int(breakDuration) % 60))
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .onTapGesture {
+                                    isEditingBreakDuration = true
+                                }
+                        }
                     }
                 }
             }
@@ -172,31 +233,43 @@ struct CustomRuleView: View {
             }
         }
         .padding(32)
+        .frame(width: 400)
         .background(
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(red: 0, green: 0, blue: 0).opacity(0.3))
+                Color(.windowBackgroundColor).opacity(0.3)  // Reduced opacity to let blur show through
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
         .opacity(isAppearing ? 1 : 0)
-        .scaleEffect(isAppearing ? 1 : 0.95)
+        .scaleEffect(isAppearing ? 1 : 0.98)
+        .offset(y: isAppearing ? 0 : -10)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(
+                .spring(
+                    response: 0.3,
+                    dampingFraction: 0.65,
+                    blendDuration: 0
+                )
+            ) {
                 isAppearing = true
             }
         }
     }
     
     private func dismissSettings() {
-        withAnimation(.easeIn(duration: 0.2)) {
+        withAnimation(
+            .spring(
+                response: 0.3,
+                dampingFraction: 0.65,
+                blendDuration: 0
+            )
+        ) {
             isAppearing = false
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             onClose()
         }
     }

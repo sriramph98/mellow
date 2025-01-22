@@ -64,20 +64,19 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
+        .padding(.vertical, 24)
+        .frame(width: 360)  // Fixed width for window-like appearance
         .background(
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(red: 0, green: 0, blue: 0).opacity(0.3))
+                Color(.windowBackgroundColor).opacity(0.3)  // Reduced opacity to let blur show through
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
         .opacity(isAppearing ? 1 : 0)
-        .scaleEffect(isAppearing ? 1 : 0.95)
+        .scaleEffect(isAppearing ? 1 : 0.98)
+        .offset(y: isAppearing ? 0 : -10)
         .alert("Quit Mellow?", isPresented: $showQuitAlert) {
             Button("Cancel", role: .cancel) { }
                 .keyboardShortcut(.escape)
@@ -89,7 +88,13 @@ struct SettingsView: View {
             Text("Are you sure you want to quit Mellow? You'll need to manually restart the app to use it again.")
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(
+                .spring(
+                    response: 0.3,
+                    dampingFraction: 0.65,
+                    blendDuration: 0
+                )
+            ) {
                 isAppearing = true
             }
             launchAtLogin = getLaunchAtLoginStatus()
@@ -100,11 +105,17 @@ struct SettingsView: View {
     }
     
     private func dismissSettings() {
-        withAnimation(.easeIn(duration: 0.2)) {
+        withAnimation(
+            .spring(
+                response: 0.3,
+                dampingFraction: 0.65,
+                blendDuration: 0
+            )
+        ) {
             isAppearing = false
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             onClose()
         }
     }
@@ -142,7 +153,7 @@ struct SettingRow: View {
             Toggle("", isOn: $isEnabled)
                 .toggleStyle(.switch)
                 .scaleEffect(0.8)
-                .accentColor(accentColor)
+                .tint(accentColor)
                 .padding(.leading, 48)
                 .environment(\.colorScheme, .dark)
         }

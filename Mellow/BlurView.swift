@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import IOKit.pwr_mgt
 
 public struct VisualEffectView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
@@ -108,6 +109,40 @@ class KeyEventHandlingNSView: NSView {
     }
 }
 
+// Add this class at the top level of the file
+class ScreenSaverManager: ObservableObject {
+    private var assertionID: IOPMAssertionID = 0
+    
+    func preventScreenSaver() {
+        var assertionID = self.assertionID
+        let success = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypeNoDisplaySleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "Mellow Break in Progress" as CFString,
+            &assertionID
+        )
+        
+        if success == kIOReturnSuccess {
+            self.assertionID = assertionID
+        }
+        
+        var secondAssertionID: IOPMAssertionID = 0
+        _ = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "Mellow Break in Progress" as CFString,
+            &secondAssertionID
+        )
+    }
+    
+    func allowScreenSaver() {
+        if assertionID != 0 {
+            IOPMAssertionRelease(assertionID)
+            assertionID = 0
+        }
+    }
+}
+
 struct BlurView: View {
     let technique: String
     let screen: NSScreen
@@ -121,6 +156,8 @@ struct BlurView: View {
     @State private var escapeCount = 0
     @State private var currentTime = Date()
     private let timeTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @StateObject private var screenSaverManager = ScreenSaverManager()
+    @State private var showingSkipConfirmation = false
     
     init(
         technique: String,
@@ -154,15 +191,28 @@ struct BlurView: View {
         NSScreen.main?.frame.width ?? 1440
     }
     
-    private func handleSkip() {
+    private func handleSkip(fromButton: Bool = false) {
+        if fromButton {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                showingSkipConfirmation = true
+            }
+        } else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isAnimatingOut = true
+                isAppearing = false
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                    appDelegate.skipBreak()
+                }
+            }
+        }
+    }
+    
+    private func confirmSkip() {
         // Trigger fade out animation first
-        withAnimation(
-            .spring(
-                response: 0.5,
-                dampingFraction: 0.8,
-                blendDuration: 0
-            )
-        ) {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             isAnimatingOut = true
             isAppearing = false
         }
@@ -176,63 +226,70 @@ struct BlurView: View {
     }
     
     private func handleEscape() {
-        // Ensure UI updates happen on the main thread with animation
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: 0.2)) {
                 escapeCount += 1
                 if escapeCount >= 3 {
-                    handleSkip()
+                    handleSkip(fromButton: false)  // Direct skip for ESC
                 }
             }
         }
     }
     
-    private var content: (title: String, description: String) {
+    private var content: (emoji: String, title: String, description: String) {
         switch technique {
         case "20-20-20 Rule":
             return (
+                "👀",
                 "Quick break!",
                 "Look 20 feet away for 20 seconds"
             )
         case "Pomodoro Technique":
             if pomodoroCount >= 4 {
                 return (
-                    "Long Break! 🎉",
+                    "🎉",
+                    "Long Break!",
                     "Great work on completing 4 sessions!\nTake 30 minutes to recharge"
                 )
             } else {
                 switch pomodoroCount {
                 case 1:
                     return (
-                        "Break Time ☕",
+                        "☕",
+                        "Break Time",
                         "Take 5 minutes to recharge.\nStretch, grab a drink, or just chill for a bit!"
                     )
                 case 2:
                     return (
-                        "You’ve Earned It! 🌿",
+                        "🌿",
+                        "You've Earned It!",
                         "Relax those eyes and take a deep breath."
                     )
                 case 3:
                     return (
-                        "Pause & Refresh 🍵",
+                        "🍵",
+                        "Pause & Refresh",
                         "Grab a snack or enjoy a quick stroll!"
                     )
                 default:
                     return (
-                        "Time for a Long Break! 🏖️",
-                        "You’ve done amazing work!"
+                        "🏖️",
+                        "Time for a Long Break!",
+                        "You've done amazing work!"
                     )
                 }
             }
         case "Custom":
             return (
-                "Break time!⏰",
-                "Take a moment to unwind. You’ve earned it!"
+                "⏰",
+                "Break time!",
+                "Take a moment to unwind. You've earned it!"
             )
         default:
             return (
-                "Break time!⏰ ",
-                "Take a moment to unwind. You’ve earned it!"
+                "⏰",
+                "Break time!",
+                "Take a moment to unwind. You've earned it!"
             )
         }
     }
@@ -260,6 +317,17 @@ struct BlurView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: currentTime)
+    }
+    
+    private var pomodoroCircles: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .fill(index < pomodoroCount ? Color.white : Color.white.opacity(0.2))
+                    .frame(width: 8, height: 8)
+            }
+        }
+        .padding(.vertical, 16)
     }
     
     var body: some View {
@@ -291,9 +359,8 @@ struct BlurView: View {
                 .allowsHitTesting(true)
             
             if showContent {
-                // Content with smoother animation
                 VStack(spacing: 32) {
-                    // Current time at the top
+                    // Current time - always visible
                     Text(formattedCurrentTime)
                         .font(.system(size: 17, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.6))
@@ -301,57 +368,118 @@ struct BlurView: View {
                     
                     Spacer()
                     
-                    // Title
-                    Text(content.title)
-                        .font(.system(size: 48, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    // Conditional content based on skip confirmation
+                    Group {
+                        if showingSkipConfirmation {
+                            // Skip confirmation content
+                            Text("🤔")
+                                .font(.system(size: 64))
+                                .padding(.bottom, -16)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            
+                            Text("Skip this break?")
+                                .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            
+                            Text("Your eyes deserve this moment of rest")
+                                .font(.system(size: 17, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                        } else {
+                            // Original content
+                            Text(content.emoji)
+                                .font(.system(size: 64))
+                                .padding(.bottom, -16)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            Text(content.title)
+                                .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(8)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            Text(content.description)
+                                .font(.system(size: 17, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(8)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                    }
                     
-                    // Description
-                    Text(content.description)
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Pomodoro circles - always visible if applicable
+                    if technique == "Pomodoro Technique" {
+                        pomodoroCircles
+                    }
                     
-                    // Timer
+                    // Timer - always visible
                     Text(formattedTime)
                         .font(.system(size: 64, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                         .monospacedDigit()
-                        .transition(.scale.combined(with: .opacity))
                     
                     Spacer()
                     
-                    // Skip button
-                    Button(action: handleSkip) {
-                        Text("Skip")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(
-                                Capsule()
-                                    .fill(.white.opacity(0.2))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    
-                    // Escape key counter text
-                    if escapeCount > 0 && escapeCount < 3 {
-                        Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.top, 8)
-                    } else {
-                        Text(" Press ⎋ esc 3 times to skip")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
-                            .foregroundColor(.white.opacity(0.4))
-                            .padding(.top, 8)
+                    // Bottom buttons with transitions
+                    Group {
+                        if showingSkipConfirmation {
+                            // Skip confirmation buttons
+                            HStack(spacing: 16) {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                        showingSkipConfirmation = false
+                                    }
+                                }) {
+                                    Text("Continue Break")
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 12)
+                                        .background(Capsule().fill(.white.opacity(0.2)))
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                                
+                                Button(action: confirmSkip) {
+                                    Text("Skip")
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 12)
+                                        .background(Capsule().fill(.white.opacity(0.2)))
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            }
+                        } else {
+                            // Original skip button and ESC text
+                            Button(action: { handleSkip(fromButton: true) }) {
+                                Text("Skip")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 12)
+                                    .background(Capsule().fill(.white.opacity(0.2)))
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            if escapeCount > 0 && escapeCount < 3 {
+                                Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .padding(.top, 8)
+                            } else {
+                                Text(" Press ⎋ esc 3 times to skip")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.4))
+                                    .padding(.top, 8)
+                            }
+                        }
                     }
                     
                     Spacer().frame(height: 32)
@@ -359,18 +487,14 @@ struct BlurView: View {
                 .padding(.horizontal, 32)
                 .opacity(isAppearing ? 1 : 0)
                 .blur(radius: isAppearing ? 0 : 10)
-                .scaleEffect(isAppearing ? 1 : 0.9)
+                .scaleEffect(isAppearing ? 1 : 0.95)
             }
         }
         .onReceive(timer) { _ in
             if timeRemaining > 0 {
                 timeRemaining -= 1
             } else {
-                // Break duration is over
-                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                    appDelegate.handleBreakComplete()  // New method to handle break completion
-                }
-                handleSkip()
+                handleSkip(fromButton: false)  // Just skip the break when timer ends
             }
         }
         .onReceive(timeTimer) { _ in
@@ -378,10 +502,12 @@ struct BlurView: View {
         }
         .onAppear {
             wallpaperImage = getSystemWallpaper()
+            screenSaverManager.preventScreenSaver()
+            
             withAnimation(
                 .spring(
-                    response: 0.6,
-                    dampingFraction: 0.8,
+                    response: 0.3,         // Match settings animation
+                    dampingFraction: 0.65, // Match settings animation
                     blendDuration: 0
                 )
             ) {
@@ -400,14 +526,16 @@ struct BlurView: View {
                 }
             }
         }
+        .onDisappear {
+            screenSaverManager.allowScreenSaver() // This is already in place
+        }
         .opacity(isAppearing ? 1 : 0)
         .onChange(of: isAnimatingOut) { oldValue, newValue in
             if newValue {
-                // Smooth exit animation
                 withAnimation(
                     .spring(
-                        response: 0.5,
-                        dampingFraction: 0.8,
+                        response: 0.3,     // Match settings animation
+                        dampingFraction: 0.65, // Match settings animation
                         blendDuration: 0
                     )
                 ) {

@@ -242,63 +242,36 @@ struct HomeView: View {
                         .foregroundColor(.white)
                     }
                     .buttonStyle(PillButtonStyle(
-                        minWidth: 135,
+                        minWidth: 0,
                         customBackground: isRunning ? Color(red: 1, green: 0, blue: 0).opacity(0.8) : nil
                     ))
-                    .frame(width: 135, alignment: isRunning ? .trailing : .center)
-                    
-                    // Preview button (temporarily hidden)
-                    /*
-                    Button(action: {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showBlurScreen(forTechnique: selectedPreset)
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "eye")
-                            Text("Preview")
-                        }
-                    }
-                    .frame(width: 135, alignment: isRunning ? .trailing : .center)
-                    .buttonStyle(PillButtonStyle())
-                    */
+                    .animation(.smooth(duration: 0.3), value: timerState.timeString)
                     
                     if isRunning {
                         Button(action: {
                             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                appDelegate.stopTimer()
-                                // Restart the timer immediately with isReset = true
-                                appDelegate.startSelectedTechnique(technique: selectedPreset, isReset: true)
+                                appDelegate.togglePauseTimer()
                             }
                         }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.clockwise")
+                            HStack(spacing: 8) {
+                                Image(systemName: timerState.isPaused ? "play.circle.fill" : "pause.circle.fill")
                                     .font(.system(size: 12, weight: .medium))
-                                Text("Reset")
+                                Text(timerState.isPaused ? "Resume" : "Pause")
                                     .font(.system(size: 16, weight: .medium, design: .rounded))
                             }
                             .foregroundColor(.white)
                         }
-                        .buttonStyle(PillButtonStyle())
-                        .transition(
-                            .asymmetric(
-                                insertion: .scale(scale: 0.8)
-                                    .combined(with: .opacity)
-                                    .combined(with: .offset(x: -20)),
-                                removal: .scale(scale: 0.8)
-                                    .combined(with: .opacity)
-                                    .combined(with: .offset(x: -20))
-                            )
-                        )
+                        .buttonStyle(PillButtonStyle(
+                            minWidth: 0,
+                            customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
+                        ))
+                        .animation(.smooth(duration: 0.3), value: timerState.isPaused)
+                        .transition(.opacity.combined(with: .scale))
                     }
                 }
                 .padding(.horizontal, 32)
                 .animation(
-                    .spring(
-                        response: 0.4,
-                        dampingFraction: 0.8,
-                        blendDuration: 0
-                    ),
+                    .smooth(duration: 0.3),
                     value: isRunning
                 )
             }
@@ -374,13 +347,25 @@ struct HomeView: View {
         )
         .onAppear {
             // Animate content first, then footer
-            withAnimation(.easeOut(duration: 1.0)) {
+            withAnimation(
+                .spring(
+                    response: 0.6,         // Changed from 0.3 to 0.6
+                    dampingFraction: 0.8,  // Changed from 0.5 to 0.8
+                    blendDuration: 0
+                )
+            ) {
                 isContentVisible = true
             }
             
             // Slight delay for footer animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeOut(duration: 1.0)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(
+                    .spring(
+                        response: 0.6,     // Changed from 0.3 to 0.6
+                        dampingFraction: 0.8,  // Changed from 0.5 to 0.8
+                        blendDuration: 0
+                    )
+                ) {
                     isFooterVisible = true
                 }
             }

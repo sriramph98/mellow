@@ -36,6 +36,7 @@ class KeyableWindow: NSWindow {
 
 class TimerState: ObservableObject {
     @Published var timeString: String = ""
+    @Published var isPaused: Bool = false
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -70,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var customRuleOverlayView: NSView?
     @AppStorage("customInterval") var customInterval: TimeInterval = 1200 // Default 20 minutes
     @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
+    private var pausedTimeRemaining: TimeInterval?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -243,10 +245,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Primary actions
         menu.addItem(NSMenuItem(title: "Open Mellow", action: #selector(showHomeScreen), keyEquivalent: ""))
         
-        // Timer-dependent action
-        if timer != nil {
+        // Timer-dependent actions
+        if timer != nil || timerState.isPaused {
             menu.addItem(NSMenuItem.separator())
-            menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: ""))
+            
+            if timerState.isPaused {
+                // When paused, show Resume and Stop
+                menu.addItem(NSMenuItem(title: "Resume Timer", action: #selector(togglePauseFromMenu), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Stop Timer", action: #selector(stopTimerFromMenu), keyEquivalent: ""))
+            } else {
+                // When running, show Pause and Stop
+                menu.addItem(NSMenuItem(title: "Pause Timer", action: #selector(togglePauseFromMenu), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Stop Timer", action: #selector(stopTimerFromMenu), keyEquivalent: ""))
+                
+                menu.addItem(NSMenuItem.separator())
+                menu.addItem(NSMenuItem(title: "Take Break Now", action: #selector(takeBreakNow), keyEquivalent: ""))
+            }
         }
         
         menu.addItem(NSMenuItem.separator())
@@ -267,25 +281,56 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem?.menu = nil  // Clear menu after showing
     }
     
+    @objc private func togglePauseFromMenu() {
+        togglePauseTimer()
+    }
+    
+    @objc private func stopTimerFromMenu() {
+        stopTimer()
+    }
+    
+    @objc private func resetTimerFromMenu() {
+        if let currentTechnique = currentTechnique {
+            stopTimer()
+            startSelectedTechnique(technique: currentTechnique, isReset: true)
+        }
+    }
+    
     private func updateMenuBarTitle() {
         if let button = statusItem?.button {
-            if timer != nil, let nextBreak = nextBreakTime {
-                let timeRemaining = nextBreak.timeIntervalSinceNow
-                if timeRemaining > 0 {
-                    let minutes = Int(timeRemaining) / 60
-                    let seconds = Int(timeRemaining) % 60
-                    
-                    // Show only seconds if less than 1 minute
-                    if minutes == 0 {
-                        timerState.timeString = String(format: "%ds", seconds)
-                        button.title = String(format: " %ds", seconds)
-                    } else {
-                        timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                        button.title = String(format: " %d:%02d", minutes, seconds)
+            if timer != nil || timerState.isPaused {
+                if timerState.isPaused {
+                    if let remaining = pausedTimeRemaining {
+                        let minutes = Int(remaining) / 60
+                        let seconds = Int(remaining) % 60
+                        
+                        // Show only seconds if less than 1 minute
+                        if minutes == 0 {
+                            timerState.timeString = String(format: "%ds", seconds)
+                            button.title = String(format: " ⏸ %ds", seconds)
+                        } else {
+                            timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                            button.title = String(format: " ⏸ %d:%02d", minutes, seconds)
+                        }
                     }
-                } else {
-                    timerState.timeString = "0"
-                    button.title = " 0"
+                } else if let nextBreak = nextBreakTime {
+                    let timeRemaining = nextBreak.timeIntervalSinceNow
+                    if timeRemaining > 0 {
+                        let minutes = Int(timeRemaining) / 60
+                        let seconds = Int(timeRemaining) % 60
+                        
+                        // Show only seconds if less than 1 minute
+                        if minutes == 0 {
+                            timerState.timeString = String(format: "%ds", seconds)
+                            button.title = String(format: " %ds", seconds)
+                        } else {
+                            timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                            button.title = String(format: " %d:%02d", minutes, seconds)
+                        }
+                    } else {
+                        timerState.timeString = "0"
+                        button.title = " 0"
+                    }
                 }
             } else {
                 timerState.timeString = ""
@@ -322,39 +367,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         nextBreakTime = Date().addingTimeInterval(timeInterval)
+        timerState.isPaused = false
+        pausedTimeRemaining = nil
         
         timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            
-            if let nextBreak = self.nextBreakTime {
-                let timeRemaining = nextBreak.timeIntervalSinceNow
-                
-                if timeRemaining > 0 {
-                    let minutes = Int(timeRemaining) / 60
-                    let seconds = Int(timeRemaining) % 60
-                    
-                    // Show only seconds if less than 1 minute
-                    if minutes == 0 {
-                        self.timerState.timeString = String(format: "%ds", seconds)
-                        if let button = self.statusItem?.button {
-                            button.title = String(format: " %ds", seconds)
-                        }
-                    } else {
-                        self.timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                        if let button = self.statusItem?.button {
-                            button.title = String(format: " %d:%02d", minutes, seconds)
-                        }
-                    }
-                } else {
-                    self.timerState.timeString = "0"
-                    if let button = self.statusItem?.button {
-                        button.title = " 0"
-                    }
-                    
-                    self.showBlurScreen(forTechnique: self.currentTechnique)
-                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                }
-            }
+            self?.updateTimer()
         }
         
         // Set initial value in MM:SS format
@@ -367,7 +384,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     @objc private func showHomeScreen() {
-        NSApp.setActivationPolicy(.regular)
+        // Only set activation policy if window isn't visible
+        if homeWindow?.isVisible != true {
+            NSApp.setActivationPolicy(.regular)
+        }
         
         if homeWindow == nil {
             createAndShowHomeWindow()
@@ -392,12 +412,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             isAnimatingOut = false
             blurWindows.removeAll()
             
-            // Check if it's time for a long break and reset count if needed
+            // Get the current count
             let currentCount = pomodoroCount
-            if technique == "Pomodoro Technique" && currentCount >= 4 {
-                print("🍅 Long break reached! Resetting count from \(currentCount) to 0")
-                pomodoroCount = 0
-            }
             
             // Create blur windows for each screen
             for screen in NSScreen.screens {
@@ -473,11 +489,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case "20-20-20 Rule":
             return 20
         case "Pomodoro Technique":
-            // After 4 pomodoros, take a long break
-            if pomodoroCount >= 4 {
-                return longBreakDuration
+            // After 4 pomodoros, take a long break (30 minutes)
+            if pomodoroCount == 4 {
+                return longBreakDuration  // 30 minutes
             }
-            return shortBreakDuration
+            return shortBreakDuration  // 5 minutes
         case "Custom":
             let duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
             guard duration > 0 else { throw MellowError.customRuleNotConfigured }
@@ -525,8 +541,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.blurWindow = nil
                 self.breakSound?.stop()
                 
-                // Reset and start the timer
+                // Handle Pomodoro count and start next timer
+                if self.currentTechnique == "Pomodoro Technique" {
+                    if self.pomodoroCount == 4 {
+                        // After long break, reset to 1
+                        self.pomodoroCount = 1
+                        print("🍅 Long break completed - Starting new cycle at Count: 1/4")
+                    } else {
+                        // After short break, increment count
+                        self.pomodoroCount += 1
+                        print("🍅 Break completed - Count: \(self.pomodoroCount)/4")
+                    }
+                }
+                
+                // Start the next timer
                 do {
+                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
                     try self.startTimer()
                 } catch {
                     self.handleError(error)
@@ -739,12 +769,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 timeInterval = 1200  // 20 minutes
             case "Pomodoro Technique":
                 timeInterval = 1500  // 25 minutes
-                if !isReset {  // Only increment count if not resetting
-                    pomodoroCount += 1
-                    print("🍅 Started new Pomodoro - Count: \(pomodoroCount)/4")
+                // Only set count to 1 when starting fresh (count = 0), not when resetting
+                if pomodoroCount == 0 {
+                    pomodoroCount = 1
+                    print("🍅 Starting Pomodoro - Count: 1/4")
+                } else if isReset {
+                    print("🍅 Timer reset - Continuing at Count: \(pomodoroCount)/4")
                 }
             case "Custom":
-                // Always use the customInterval value
                 timeInterval = customInterval
             default:
                 if let lastInterval = lastUsedInterval,
@@ -762,7 +794,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let initialSeconds = Int(timeInterval) % 60
             timerState.timeString = String(format: "%d:%02d", initialMinutes, initialSeconds)
             
-            // Only start timer if explicitly requested
             try startTimer()
             
         } catch {
@@ -773,6 +804,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func stopTimer() {
         timer?.invalidate()
         timer = nil
+        timerState.isPaused = false
+        pausedTimeRemaining = nil
         
         // Store current settings before stopping
         if currentTechnique != nil {
@@ -780,7 +813,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             lastUsedBreakDuration = shortBreakDuration
         }
         
-        // Reset Pomodoro count when stopping
+        // Reset Pomodoro count to 0 when stopping
         if pomodoroCount > 0 {
             print("🍅 Timer stopped - Resetting count from \(pomodoroCount) to 0")
             pomodoroCount = 0
@@ -839,12 +872,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Increment pomodoroCount for Pomodoro technique
-            if self.currentTechnique == "Pomodoro Technique" {
-                self.pomodoroCount += 1
-                print("🍅 Skipped break - Count: \(self.pomodoroCount)/4")
-            }
-            
             // Wait for animation to complete
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 // Close all tracked blur windows
@@ -855,6 +882,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.blurWindows.removeAll()
                 self.blurWindow = nil
                 self.breakSound?.stop()
+                
+                // Handle Pomodoro count when skipping break
+                if self.currentTechnique == "Pomodoro Technique" {
+                    if self.pomodoroCount == 4 {
+                        // After long break, reset to 1
+                        self.pomodoroCount = 1
+                        print("🍅 Long break skipped - Starting new cycle at Count: 1/4")
+                    } else {
+                        // After short break, increment count
+                        self.pomodoroCount += 1
+                        print("🍅 Break skipped - Count: \(self.pomodoroCount)/4")
+                    }
+                }
                 
                 // Reset and start the timer only if it was running before
                 if self.timer != nil {
@@ -973,5 +1013,63 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+    
+    func togglePauseTimer() {
+        if timerState.isPaused {
+            // Resume timer
+            if let remaining = pausedTimeRemaining {
+                nextBreakTime = Date().addingTimeInterval(remaining)
+                pausedTimeRemaining = nil
+                
+                timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                    self?.updateTimer()
+                }
+                RunLoop.main.add(timer!, forMode: .common)
+            }
+        } else {
+            // Pause timer
+            timer?.invalidate()
+            timer = nil
+            
+            if let nextBreak = nextBreakTime {
+                pausedTimeRemaining = nextBreak.timeIntervalSinceNow
+            }
+        }
+        
+        timerState.isPaused.toggle()
+        updateMenuBarTitle()
+    }
+    
+    private func updateTimer() {
+        guard let nextBreak = nextBreakTime else { return }
+        
+        let timeRemaining = nextBreak.timeIntervalSinceNow
+        
+        if timeRemaining > 0 {
+            let minutes = Int(timeRemaining) / 60
+            let seconds = Int(timeRemaining) % 60
+            
+            // Show only seconds if less than 1 minute
+            if minutes == 0 {
+                timerState.timeString = String(format: "%ds", seconds)
+                if let button = statusItem?.button {
+                    button.title = String(format: " %ds", seconds)
+                }
+            } else {
+                timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                if let button = statusItem?.button {
+                    button.title = String(format: " %d:%02d", minutes, seconds)
+                }
+            }
+        } else {
+            timerState.timeString = "0"
+            if let button = statusItem?.button {
+                button.title = " 0"
+            }
+            
+            showBlurScreen(forTechnique: currentTechnique)
+            nextBreakTime = Date().addingTimeInterval(timeInterval)
+        }
     }
 }
