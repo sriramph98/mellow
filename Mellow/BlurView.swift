@@ -111,7 +111,7 @@ class KeyEventHandlingNSView: NSView {
 
 // Add this class at the top level of the file
 class ScreenSaverManager: ObservableObject {
-    private var assertionID: IOPMAssertionID = 0
+    var assertionID: IOPMAssertionID = 0
     
     func preventScreenSaver() {
         var assertionID = self.assertionID
@@ -159,7 +159,7 @@ struct BlurView: View {
     @State private var escapeCount = 0
     @State private var currentTime = Date()
     private let timeTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    @StateObject private var screenSaverManager = ScreenSaverManager()
+    @StateObject var screenSaverManager = ScreenSaverManager()
     @State private var showingSkipConfirmation = false
     
     init(
@@ -612,7 +612,11 @@ struct BlurView: View {
             }
             
             wallpaperImage = getSystemWallpaper()
-            screenSaverManager.preventScreenSaver()
+            
+            // Only prevent screen saver if this is not a test mode
+            if !testMode {
+                screenSaverManager.preventScreenSaver()
+            }
             
             // Ensure internal display window is activated
             DispatchQueue.main.async {
@@ -627,15 +631,18 @@ struct BlurView: View {
             }
         }
         .onDisappear {
-            screenSaverManager.allowScreenSaver() // This is already in place
+            // Always allow screen saver when view disappears
+            screenSaverManager.allowScreenSaver()
         }
         .opacity(isAppearing ? 1 : 0)
         .onChange(of: isAnimatingOut) { oldValue, newValue in
             if newValue {
+                // Allow screen saver when view is animating out
+                screenSaverManager.allowScreenSaver()
                 withAnimation(
                     .spring(
-                        response: 0.3,     // Match settings animation
-                        dampingFraction: 0.65, // Match settings animation
+                        response: 0.3,
+                        dampingFraction: 0.65,
                         blendDuration: 0
                     )
                 ) {

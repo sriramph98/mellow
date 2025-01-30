@@ -159,14 +159,7 @@ struct PresetCard: View {
             .background {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(cardStyle.background.opacity(cardStyle.opacity))
-                    .overlay {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(cardStyle.stroke, lineWidth: 1)
-                                .matchedGeometryEffect(id: "selectedCard", in: namespace)
-                        }
-                    }
-            }
+                }
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -208,8 +201,9 @@ struct HomeView: View {
                         .frame(width: 32, height: 32)
                     
                     Text("Mellow")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .font(Font.custom("SF Pro Rounded", size: 24).weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.black.opacity(0.4))
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 
@@ -330,8 +324,10 @@ struct HomeView: View {
             
             // Footer section
             HStack {
-                // Left - Menu bar info
-                VStack(alignment: .leading, spacing: 8) {
+                Spacer() // Add spacer at the start
+                
+                // Center - Menu bar info (moved from left)
+                VStack(alignment: .center, spacing: 8) { // Changed alignment to .center
                     HStack(spacing: 8) {
                         Image(systemName: "menubar.arrow.up.rectangle")
                             .font(.system(size: 13))
@@ -345,12 +341,11 @@ struct HomeView: View {
                     Text("Click the icon in the menu to access Mellow")
                         .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundColor(.black.opacity(0.4))
-                        .multilineTextAlignment(.leading)
+                        .multilineTextAlignment(.center) // Added center text alignment
                 }
+                .frame(maxWidth: .infinity) // Make the VStack take up all available space
                 
-                Spacer()
-                
-                // Right side - Settings icon
+                // Right side - Settings icon (keep this on the right)
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 17))
                     .foregroundColor(.black.opacity(0.5))
@@ -371,16 +366,11 @@ struct HomeView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(
             ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-                
+                // Add a linear gradient with 100% opacity
                 LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: Color(red: 0.4, green: 0.75, blue: 1).opacity(0.8), location: 0.00),
-                        Gradient.Stop(color: .white.opacity(0.6), location: 1.00),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0),
-                    endPoint: UnitPoint(x: 0.5, y: 0.72)
+                    gradient: Gradient(colors: [Color(red: 0.4, green: 0.75, blue: 1.0), Color.white]), // Using RGB values for #67BFFF
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
                 .ignoresSafeArea()
             }

@@ -759,6 +759,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         // Reset timer state
         nextBreakTime = nil
         breakSound?.stop()
+        
+        // Ensure screen saver is allowed when timer is stopped
+        if let blurWindow = blurWindow {
+            if let hostingView = blurWindow.contentView as? NSHostingView<BlurView> {
+                hostingView.rootView.screenSaverManager.allowScreenSaver()
+            }
+        }
+        
         updateMenuBarTitle()
         updateMainMenu()
     }
