@@ -170,7 +170,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         )
         
         homeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 100),
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 100),
             styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -730,7 +730,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         
         // Create and configure the popover
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 360, height: 420)
+        popover.contentSize = NSSize(width: 440, height: 420)  // Updated dimensions to match vertical layout
         popover.behavior = .transient // Closes when clicking outside
         popover.contentViewController = hostingController
         popover.animates = true

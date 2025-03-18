@@ -115,7 +115,7 @@ struct PresetCard: View {
                             y: isSelected ? 5 : 3)
                     .contentShape(Rectangle())
                     .zIndex(10) // Increase z-index when flipped
-                    .frame(minHeight: 420) // Minimum height when flipped, can expand if needed
+                    .frame(maxWidth: 440, minHeight: 390) // Further reduced for better fit
                     .onHover { hovering in
                         isHovering = hovering && !isDisabled
                         
@@ -322,6 +322,7 @@ struct PresetCard: View {
             }
             .foregroundColor(.white)
             .frame(height: 30)
+            .padding(.horizontal, 8)
         }
         .buttonStyle(PillButtonStyle(
             customBackground: Color(red: 1, green: 0, blue: 0).opacity(0.8)
@@ -349,6 +350,7 @@ struct PresetCard: View {
             }
             .foregroundColor(.white)
             .frame(height: 30)
+            .padding(.horizontal, 8)
         }
         .buttonStyle(PillButtonStyle(
             customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
@@ -432,139 +434,155 @@ struct PresetCard: View {
     
     // Add the custom rule interface view
     private var customRuleInterface: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            // Header with close button
-            HStack {
-                Text("Custom Rule")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(.black.opacity(0.7))
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 16) {
+                // Header with close button
+                HStack {
+                    Text("Custom Rule")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(.black.opacity(0.8))
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                            isFlipped = false
+                            // Post notification that card is no longer flipped
+                            NotificationCenter.default.post(name: .cardFlipStateChanged, object: nil, userInfo: ["isFlipped": false])
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.black.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Divider()
+                    .background(Color.black.opacity(0.1))
+                
+                // Main content in vertical layout
+                VStack(alignment: .leading, spacing: 12) {
+                    // Break Interval Setting
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Break Interval")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.black.opacity(0.7))
+                            
+                            Spacer()
+                            
+                            Text(formatTime(Int(customReminderInterval * 60)))
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.black.opacity(0.5))
+                                .monospacedDigit()
+                        }
+                        
+                        Text("How often should we remind you to take a break?")
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .foregroundColor(.black.opacity(0.5))
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        VStack(spacing: 4) {
+                            CustomSlider(range: 5...60, value: $customReminderInterval)
+                                .frame(height: 20)
+                            
+                            HStack {
+                                Text("5m")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundColor(.black.opacity(0.4))
+                                
+                                Spacer()
+                                
+                                Text("60m")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundColor(.black.opacity(0.4))
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                        .background(Color.black.opacity(0.1))
+                    
+                    // Break Duration Setting
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Break Duration")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.black.opacity(0.7))
+                            
+                            Spacer()
+                            
+                            Text(formatTime(Int(customBreakDuration * 60)))
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.black.opacity(0.5))
+                                .monospacedDigit()
+                        }
+                        
+                        Text("How long should each break last?")
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .foregroundColor(.black.opacity(0.5))
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        VStack(spacing: 4) {
+                            CustomSlider(range: 0.25...10, value: $customBreakDuration)
+                                .frame(height: 20)
+                            
+                            HStack {
+                                Text("15s")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundColor(.black.opacity(0.4))
+                                
+                                Spacer()
+                                
+                                Text("10m")
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundColor(.black.opacity(0.4))
+                            }
+                        }
+                    }
+                }
                 
                 Spacer()
                 
+                // Apply Button
                 Button(action: {
+                    saveCustomRule()
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                         isFlipped = false
                         // Post notification that card is no longer flipped
                         NotificationCenter.default.post(name: .cardFlipStateChanged, object: nil, userInfo: ["isFlipped": false])
                     }
                 }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.black.opacity(0.5))
+                    Text("Apply")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.blue.opacity(0.7), Color.blue.opacity(0.8)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(8)
+                        .shadow(color: Color.blue.opacity(0.3), radius: 3, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
             }
-            
-            Divider()
-                .background(Color.black.opacity(0.1))
-            
-            // Break Interval Setting
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Break Interval")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.black.opacity(0.7))
-                    
-                    Spacer()
-                    
-                    Text(formatTime(Int(customReminderInterval * 60)))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.black.opacity(0.5))
-                        .monospacedDigit()
-                }
-                
-                Text("How often should we remind you to take a break?")
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(.black.opacity(0.5))
-                
-                HStack {
-                    Text("5m")
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundColor(.black.opacity(0.4))
-                    
-                    CustomSlider(range: 5...60, value: $customReminderInterval)
-                        .frame(height: 20)
-                        .contentShape(Rectangle())
-                    
-                    Text("60m")
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundColor(.black.opacity(0.4))
-                }
-                .padding(.top, 4)
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.8))
             }
-            
-            Divider()
-                .background(Color.black.opacity(0.1))
-            
-            // Break Duration Setting
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Break Duration")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.black.opacity(0.7))
-                    
-                    Spacer()
-                    
-                    Text(formatTime(Int(customBreakDuration * 60)))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.black.opacity(0.5))
-                        .monospacedDigit()
-                }
-                
-                Text("How long should each break last?")
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(.black.opacity(0.5))
-                
-                HStack {
-                    Text("15s")
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundColor(.black.opacity(0.4))
-                    
-                    CustomSlider(range: 0.25...10, value: $customBreakDuration)
-                        .frame(height: 20)
-                        .contentShape(Rectangle())
-                    
-                    Text("10m")
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundColor(.black.opacity(0.4))
-                }
-                .padding(.top, 4)
-            }
-            
-            Spacer()
-            
-            // Apply Button
-            Button(action: {
-                saveCustomRule()
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                    isFlipped = false
-                    // Post notification that card is no longer flipped
-                    NotificationCenter.default.post(name: .cardFlipStateChanged, object: nil, userInfo: ["isFlipped": false])
-                }
-            }) {
-                Text("Apply")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.blue.opacity(0.7))
-                    .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
+            // Need to rotate the content for proper reading once flipped
+            .rotation3DEffect(
+                Angle(degrees: 180),
+                axis: (x: 0, y: 1, z: 0)
+            )
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.8))
-        }
-        // Allow the card to expand outside its normal frame while maintaining rounded corners
-        .fixedSize(horizontal: false, vertical: true)
-        // Need to rotate the content for proper reading once flipped
-        .rotation3DEffect(
-            Angle(degrees: 180),
-            axis: (x: 0, y: 1, z: 0)
-        )
     }
     
     private func formatTime(_ time: Int) -> String {
@@ -616,6 +634,7 @@ struct HomeView: View {
     @State private var isModalPresented = false
     @State private var isAnyCardFlipped = false
     @State private var notificationObserver: NSObjectProtocol? = nil
+    @State private var showSettings = false
     @Namespace private var animation
     
     init(
@@ -629,206 +648,235 @@ struct HomeView: View {
     }
     
     var body: some View {
-        VStack(spacing: 16) {
-            // Main content group (everything except footer)
+        ZStack {
             VStack(spacing: 16) {
-                // App Header
-                HStack(spacing: 12) {
-                    // Commented out logo image
-                    /*Image("MellowLogo")
-                        .resizable()
-                        .frame(width: 48, height: 48)
-                    
-                    Text("Mellow")
-                        .font(Font.custom("SF Pro Rounded", size: 24).weight(.heavy))
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.black.opacity(0.3))*/
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                
-                // Preset Cards with 16px spacing
-                HStack(spacing: 16) {
-                    // Card container with reduced width
-                    VStack {
-                        PresetCard(
-                            title: "20-20-20 Rule",
-                            isSelected: selectedPreset == "20-20-20 Rule",
-                            description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "20-20-20 Rule"
-                                    onTimeIntervalChange(1200)
-                                }
-                            },
-                            isDisabled: (isRunning && selectedPreset != "20-20-20 Rule") || isAnyCardFlipped,
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "20-20-20 Rule",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
-                    
-                    VStack {
-                        PresetCard(
-                            title: "Pomodoro Technique",
-                            isSelected: selectedPreset == "Pomodoro Technique",
-                            description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "Pomodoro Technique"
-                                    onTimeIntervalChange(1500)
-                                }
-                            },
-                            isDisabled: (isRunning && selectedPreset != "Pomodoro Technique") || isAnyCardFlipped,
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "Pomodoro Technique",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
-                    
-                    VStack {
-                        PresetCard(
-                            title: "Custom",
-                            isSelected: selectedPreset == "Custom",
-                            description: "Set your own rules to match your workflow.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "Custom"
-                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                        onTimeIntervalChange(appDelegate.customInterval)
-                                    }
-                                }
-                            },
-                            isCustom: true,
-                            onModify: nil,
-                            isDisabled: isRunning && selectedPreset != "Custom",
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "Custom",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
-                }
-                .frame(minHeight: isAnyCardFlipped ? 420 : 280)
-                .padding(.horizontal, 24)
-            }
-            .blur(radius: isContentVisible ? 0 : 10)
-            .opacity(isContentVisible ? 1 : 0)
-            .scaleEffect(isContentVisible ? 1 : 0.8)
-            
-            // Footer section
-            HStack {
-                Spacer() // Add spacer at the start
-                
-                // Center - Menu bar info (moved from left)
-                VStack(alignment: .center, spacing: 8) { // Changed alignment to .center
-                    HStack(spacing: 8) {
-                        Image(systemName: "menubar.arrow.up.rectangle")
-                            .font(.system(size: 13))
-                            .foregroundColor(.black.opacity(0.6))
+                // Main content group (everything except footer)
+                VStack(spacing: 16) {
+                    // App Header
+                    HStack(spacing: 12) {
+                        // Commented out logo image
+                        /*Image("MellowLogo")
+                            .resizable()
+                            .frame(width: 48, height: 48)
                         
-                        Text("Mellow lives in the menu bar")
-                            .font(Font.custom("SF Pro Rounded", size: 13).weight(.regular))
-                            .foregroundColor(.black.opacity(0.6))
+                        Text("Mellow")
+                            .font(Font.custom("SF Pro Rounded", size: 24).weight(.heavy))
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.black.opacity(0.3))*/
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                     
-                    Text("Click the icon in the menu to access Mellow")
-                        .font(Font.custom("SF Pro Rounded", size: 11).weight(.regular))
-                        .foregroundColor(.black.opacity(0.4))
-                        .multilineTextAlignment(.center) // Added center text alignment
-                }
-                .frame(maxWidth: .infinity) // Make the VStack take up all available space
-                
-                // Right side - Settings icon (keep this on the right)
-                Button {
-                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                        appDelegate.showSettings()
+                    // Preset Cards with 20px spacing
+                    HStack(spacing: 20) {
+                        // Card container with reduced width
+                        VStack {
+                            PresetCard(
+                                title: "20-20-20 Rule",
+                                isSelected: selectedPreset == "20-20-20 Rule",
+                                description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
+                                action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        selectedPreset = "20-20-20 Rule"
+                                        onTimeIntervalChange(1200)
+                                    }
+                                },
+                                isDisabled: (isRunning && selectedPreset != "20-20-20 Rule") || isAnyCardFlipped,
+                                namespace: animation,
+                                timerState: timerState,
+                                isRunning: isRunning && selectedPreset == "20-20-20 Rule",
+                                onStartStop: {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        isRunning.toggle()
+                                    }
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        if isRunning {
+                                            appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                        } else {
+                                            appDelegate.stopTimer()
+                                        }
+                                    }
+                                },
+                                onPauseResume: {
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        appDelegate.togglePauseTimer()
+                                    }
+                                }
+                            )
+                        }
+                        .frame(width: 280) // Changed from 200 to 280
+                        .padding(.vertical, 10) // Added vertical padding
+                        
+                        VStack {
+                            PresetCard(
+                                title: "Pomodoro Technique",
+                                isSelected: selectedPreset == "Pomodoro Technique",
+                                description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
+                                action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        selectedPreset = "Pomodoro Technique"
+                                        onTimeIntervalChange(1500)
+                                    }
+                                },
+                                isDisabled: (isRunning && selectedPreset != "Pomodoro Technique") || isAnyCardFlipped,
+                                namespace: animation,
+                                timerState: timerState,
+                                isRunning: isRunning && selectedPreset == "Pomodoro Technique",
+                                onStartStop: {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        isRunning.toggle()
+                                    }
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        if isRunning {
+                                            appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                        } else {
+                                            appDelegate.stopTimer()
+                                        }
+                                    }
+                                },
+                                onPauseResume: {
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        appDelegate.togglePauseTimer()
+                                    }
+                                }
+                            )
+                        }
+                        .frame(width: 280) // Changed from 200 to 280
+                        .padding(.vertical, 10) // Added vertical padding
+                        
+                        VStack {
+                            PresetCard(
+                                title: "Custom",
+                                isSelected: selectedPreset == "Custom",
+                                description: "Set your own rules to match your workflow.",
+                                action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        selectedPreset = "Custom"
+                                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                            onTimeIntervalChange(appDelegate.customInterval)
+                                        }
+                                    }
+                                },
+                                isCustom: true,
+                                onModify: nil,
+                                isDisabled: isRunning && selectedPreset != "Custom",
+                                namespace: animation,
+                                timerState: timerState,
+                                isRunning: isRunning && selectedPreset == "Custom",
+                                onStartStop: {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        isRunning.toggle()
+                                    }
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        if isRunning {
+                                            appDelegate.startSelectedTechnique(technique: selectedPreset)
+                                        } else {
+                                            appDelegate.stopTimer()
+                                        }
+                                    }
+                                },
+                                onPauseResume: {
+                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                                        appDelegate.togglePauseTimer()
+                                    }
+                                }
+                            )
+                        }
+                        .frame(width: 280) // Changed from 200 to 280
+                        .padding(.vertical, 10) // Added vertical padding
                     }
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 15))
-                        .foregroundColor(.black.opacity(0.5))
+                    .frame(minHeight: isAnyCardFlipped ? 390 : 320)  // Further reduced to 390 for better fit
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 24) // Increased vertical padding further for better spacing
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Settings")
-                .help("Open Settings")
-                .tag(1001) // Tag for popover anchoring
+                .blur(radius: isContentVisible ? 0 : 10)
+                .opacity(isContentVisible ? 1 : 0)
+                .scaleEffect(isContentVisible ? 1 : 0.8)
+                
+                // Footer section
+                HStack {
+                    Spacer() // Add spacer at the start
+                    
+                    // Center - Menu bar info (moved from left)
+                    VStack(alignment: .center, spacing: 8) { // Changed alignment to .center
+                        HStack(spacing: 8) {
+                            Image(systemName: "menubar.arrow.up.rectangle")
+                                .font(.system(size: 13))
+                                .foregroundColor(.black.opacity(0.6))
+                            
+                            Text("Mellow lives in the menu bar")
+                                .font(Font.custom("SF Pro Rounded", size: 13).weight(.regular))
+                                .foregroundColor(.black.opacity(0.6))
+                        }
+                        
+                        Text("Click the icon in the menu to access Mellow")
+                            .font(Font.custom("SF Pro Rounded", size: 11).weight(.regular))
+                            .foregroundColor(.black.opacity(0.4))
+                            .multilineTextAlignment(.center) // Added center text alignment
+                    }
+                    .frame(maxWidth: .infinity) // Make the VStack take up all available space
+                    
+                    // Right side - Settings icon (keep this on the right)
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            showSettings = true
+                        }
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 15))
+                            .foregroundColor(.black.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Settings")
+                    .help("Open Settings")
+                    .tag(1001) // Tag for popover anchoring
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .offset(y: isFooterVisible ? 0 : 100)
+                .opacity(isFooterVisible ? 1 : 0)
+                .blur(radius: isFooterVisible ? 0 : 10)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
-            .offset(y: isFooterVisible ? 0 : 100)
-            .opacity(isFooterVisible ? 1 : 0)
-            .blur(radius: isFooterVisible ? 0 : 10)
+            .padding(.top, 12)
+            .frame(minWidth: 900)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(
+                ZStack {
+                    // Gradient background
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            Gradient.Stop(color: Color(hex: "#71C3FF"), location: 0.00),
+                            Gradient.Stop(color: Color(hex: "#FFFFFF"), location: 1.00),
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                }
+            )
+            
+            // Overlay for settings
+            if showSettings {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            showSettings = false
+                        }
+                    }
+                
+                SettingsView(onClose: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showSettings = false
+                    }
+                })
+                .frame(width: 320, height: 360)
+                .background(Color(.windowBackgroundColor))
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+                .transition(.scale(scale: 0.95).combined(with: .opacity))
+                .zIndex(100)
+            }
         }
-        .padding(.top, 12)
-        .frame(minWidth: 640)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(
-            ZStack {
-                // Gradient background
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        Gradient.Stop(color: Color(hex: "#71C3FF"), location: 0.00),
-                        Gradient.Stop(color: Color(hex: "#FFFFFF"), location: 1.00),
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            }
-        )
         .onAppear {
             // Animate content first, then footer
             withAnimation(
@@ -891,7 +939,7 @@ struct HomeView: View {
         timerState: TimerState(),
         onTimeIntervalChange: { _ in }
     )
-    .frame(width: 800, height: 600)
+    .frame(width: 900, height: 600)
 }
 
 struct PresetCardPreview: View {
