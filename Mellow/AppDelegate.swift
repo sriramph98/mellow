@@ -40,6 +40,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     var timer: Timer?
     var settingsWindow: NSWindow?
     var customRuleWindow: NSWindow?
+    var settingsPopover: NSPopover?
+    var settingsViewController: NSViewController?
     @objc dynamic var timeInterval: TimeInterval = UserDefaults.standard.double(forKey: "breakInterval") {
         didSet {
             UserDefaults.standard.set(timeInterval, forKey: "breakInterval")
@@ -654,63 +656,111 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     @objc func showSettings() {
-        if let homeWindow = homeWindow {
-            let settingsView = SettingsView(onClose: { [weak self] in
-                self?.homeWindowInteractionDisabled = false
-                if let attachedSheet = homeWindow.attachedSheet {
-                    homeWindow.endSheet(attachedSheet)
-                }
-            })
-            
-            let hostingView = NSHostingView(rootView: settingsView)
-            let settingsController = NSViewController()
-            settingsController.view = hostingView
-            
-            homeWindow.beginSheet(NSWindow(contentViewController: settingsController)) { _ in
-                // Sheet closed
+        // Close any existing popover first
+        settingsPopover?.close()
+        
+        // Create the settings view
+        let settingsView = SettingsView(onClose: { [weak self] in
+            self?.settingsPopover?.close()
+        })
+        
+        // Create hosting view controller for the SwiftUI view
+        let hostingController = NSHostingController(rootView: settingsView)
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Create and configure the popover
+        let popover = NSPopover()
+        popover.contentSize = NSSize(width: 320, height: 360)
+        popover.behavior = .transient // Closes when clicking outside
+        popover.contentViewController = hostingController
+        popover.animates = true
+        self.settingsPopover = popover
+        self.settingsViewController = hostingController
+        
+        // Determine the source to show the popover from
+        if let statusButton = statusItem?.button {
+            // Show from menu bar status item
+            popover.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
+        } else if let homeWindow = homeWindow, homeWindow.isVisible {
+            // Show from settings button in home window
+            popover.showFromTaggedView(tag: 1001, in: homeWindow, preferredEdge: .maxY)
+        } else {
+            // If no good anchor point, create and show the home window first
+            if homeWindow == nil {
+                createAndShowHomeWindow()
+            } else {
+                showHomeScreen()
             }
             
-            homeWindowInteractionDisabled = true
+            // Delay showing the popover until the window is visible
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self = self, let homeWindow = self.homeWindow else { return }
+                popover.showFromTaggedView(tag: 1001, in: homeWindow, preferredEdge: .maxY)
+            }
         }
     }
     
     func showCustomRuleSettings() {
-        if let homeWindow = homeWindow {
-            let customRuleView = CustomRuleView(
-                onSave: { [weak self] interval in
-                    guard let self = self else { return }
-                    // Update the custom interval
-                    self.customInterval = interval
-                    
-                    // If Custom is the selected technique, update the current timeInterval
-                    if self.currentTechnique == "Custom" {
-                        self.timeInterval = interval
-                    }
-                    
-                    // Mark as configured and close the sheet
-                    self.isCustomRuleConfigured = true
-                    self.homeWindowInteractionDisabled = false
-                    if let attachedSheet = homeWindow.attachedSheet {
-                        homeWindow.endSheet(attachedSheet)
-                    }
-                },
-                onClose: { [weak self] in
-                    self?.homeWindowInteractionDisabled = false
-                    if let attachedSheet = homeWindow.attachedSheet {
-                        homeWindow.endSheet(attachedSheet)
-                    }
+        // Close any existing popover first
+        settingsPopover?.close()
+        
+        let customRuleView = CustomRuleView(
+            onSave: { [weak self] interval in
+                guard let self = self else { return }
+                // Update the custom interval
+                self.customInterval = interval
+                
+                // If Custom is the selected technique, update the current timeInterval
+                if self.currentTechnique == "Custom" {
+                    self.timeInterval = interval
                 }
-            )
-            
-            let hostingView = NSHostingView(rootView: customRuleView)
-            let customRuleController = NSViewController()
-            customRuleController.view = hostingView
-            
-            homeWindow.beginSheet(NSWindow(contentViewController: customRuleController)) { _ in
-                // Sheet closed
+                
+                // Mark as configured and close the popover
+                self.isCustomRuleConfigured = true
+                self.settingsPopover?.close()
+            },
+            onClose: { [weak self] in
+                self?.settingsPopover?.close()
+            }
+        )
+        
+        // Create hosting controller for SwiftUI view
+        let hostingController = NSHostingController(rootView: customRuleView)
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Create and configure the popover
+        let popover = NSPopover()
+        popover.contentSize = NSSize(width: 360, height: 420)
+        popover.behavior = .transient // Closes when clicking outside
+        popover.contentViewController = hostingController
+        popover.animates = true
+        self.settingsPopover = popover
+        self.settingsViewController = hostingController
+        
+        // Determine where to show the popover
+        if let homeWindow = homeWindow, homeWindow.isVisible {
+            if let customButton = homeWindow.contentView?.findViewWithTag(1002) {
+                // Show from custom rule button if available
+                popover.show(relativeTo: customButton.bounds, of: customButton, preferredEdge: .maxY)
+            } else {
+                // Show from center of window
+                let centerRect = NSRect(x: homeWindow.frame.width/2, y: homeWindow.frame.height/2, width: 0, height: 0)
+                popover.show(relativeTo: centerRect, of: homeWindow.contentView!, preferredEdge: .maxY)
+            }
+        } else {
+            // If home window isn't visible, show it first
+            if homeWindow == nil {
+                createAndShowHomeWindow()
+            } else {
+                showHomeScreen()
             }
             
-            homeWindowInteractionDisabled = true
+            // Delay showing the popover until the window is visible
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self = self, let homeWindow = self.homeWindow else { return }
+                let centerRect = NSRect(x: homeWindow.frame.width/2, y: homeWindow.frame.height/2, width: 0, height: 0)
+                popover.show(relativeTo: centerRect, of: homeWindow.contentView!, preferredEdge: .maxY)
+            }
         }
     }
     
@@ -1273,6 +1323,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         if assertionID != 0 {
             IOPMAssertionRelease(assertionID)
             assertionID = 0
+        }
+    }
+}
+
+// MARK: - Utility Extensions
+
+// Helper extension to find views by tag
+extension NSView {
+    func findViewWithTag(_ tag: Int) -> NSView? {
+        if self.tag == tag {
+            return self
+        }
+        
+        for subview in subviews {
+            if let view = subview.findViewWithTag(tag) {
+                return view
+            }
+        }
+        
+        return nil
+    }
+}
+
+// MARK: - NSPopover Extensions
+extension NSPopover {
+    // Convenience method to show popover from a tagged view in a window
+    func showFromTaggedView(tag: Int, in window: NSWindow, preferredEdge: NSRectEdge = .maxY) {
+        if let button = window.contentView?.findViewWithTag(tag) {
+            self.show(relativeTo: button.bounds, of: button, preferredEdge: preferredEdge)
         }
     }
 }

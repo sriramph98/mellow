@@ -629,9 +629,9 @@ struct HomeView: View {
     }
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             // Main content group (everything except footer)
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // App Header
                 HStack(spacing: 12) {
                     // Commented out logo image
@@ -792,14 +792,19 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity) // Make the VStack take up all available space
                 
                 // Right side - Settings icon (keep this on the right)
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 15))
-                    .foregroundColor(.black.opacity(0.5))
-                    .onTapGesture {
-                        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                            appDelegate.showSettings()
-                        }
+                Button {
+                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                        appDelegate.showSettings()
                     }
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 15))
+                        .foregroundColor(.black.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
+                .help("Open Settings")
+                .tag(1001) // Tag for popover anchoring
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
@@ -807,7 +812,7 @@ struct HomeView: View {
             .opacity(isFooterVisible ? 1 : 0)
             .blur(radius: isFooterVisible ? 0 : 10)
         }
-        .padding(.top, 24)
+        .padding(.top, 12)
         .frame(minWidth: 640)
         .fixedSize(horizontal: false, vertical: true)
         .background(
