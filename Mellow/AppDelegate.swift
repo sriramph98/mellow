@@ -67,6 +67,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     @Published var homeWindowInteractionDisabled = false
     private var assertionID: IOPMAssertionID = 0
     
+    // Helper function to configure window dragging behavior
+    private func configureWindowDragging(for window: NSWindow, allowDragging: Bool = false) {
+        // Allow dragging by title bar but prevent dragging by content area
+        window.isMovable = true
+        window.isMovableByWindowBackground = allowDragging
+    }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         
@@ -167,6 +174,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             defer: false
         )
         
+        // Configure window dragging behavior
+        configureWindowDragging(for: homeWindow!)
+        
         // Add beta tag to title
         let betaTag = NSTextField(labelWithString: "BETA")
         betaTag.font = .systemFont(ofSize: 10, weight: .medium)
@@ -185,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         
         // Configure window for appearance modes
         homeWindow?.appearance = NSAppearance(named: .darkAqua)
-        homeWindow?.isMovableByWindowBackground = true
+        homeWindow?.isMovableByWindowBackground = false
         homeWindow?.titlebarAppearsTransparent = true
         homeWindow?.titleVisibility = .hidden
         homeWindow?.backgroundColor = .clear
@@ -539,6 +549,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         window.acceptsMouseMovedEvents = true
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        // Disable window dragging
+        configureWindowDragging(for: window, allowDragging: false)
         
         return window
     }
@@ -1113,7 +1126,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 // Configure window
                 window.level = .floating
                 window.isMovable = false
-                window.isMovableByWindowBackground = false
                 window.hasShadow = true
                 window.backgroundColor = .clear
                 window.title = "Mellow"  // Add title for Mission Control
@@ -1216,6 +1228,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             blurWindow?.backgroundColor = .clear
             blurWindow?.isOpaque = false
             blurWindow?.hasShadow = false
+            
+            // Disable window dragging
+            if let window = blurWindow {
+                configureWindowDragging(for: window, allowDragging: false)
+            }
             
             // Create BlurView with required parameters
             let blurView = BlurView(

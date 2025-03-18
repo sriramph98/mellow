@@ -1,76 +1,6 @@
 import SwiftUI
 import AppKit
 
-struct CustomSlider: NSViewRepresentable {
-    let range: ClosedRange<Double>
-    @Binding var value: Double
-    private let accentColor = NSColor(red: 0/255, green: 122/255, blue: 255/255, alpha: 1.0)  // #007AFF
-    
-    func makeNSView(context: Context) -> NSSlider {
-        let slider = NSSlider(value: value, 
-                            minValue: range.lowerBound, 
-                            maxValue: range.upperBound, 
-                            target: context.coordinator, 
-                            action: #selector(Coordinator.valueChanged(_:)))
-        
-        // Force dark appearance
-        slider.appearance = NSAppearance(named: .darkAqua)
-        
-        // Configure slider appearance
-        slider.trackFillColor = accentColor
-        slider.isEnabled = true
-        slider.isContinuous = true
-        
-        // Set to linear style without tick marks
-        slider.sliderType = .linear
-        slider.controlSize = .regular
-        slider.numberOfTickMarks = 0
-        
-        // Ensure the slider is properly layered
-        slider.wantsLayer = true
-        slider.layer?.zPosition = 1
-        
-        return slider
-    }
-    
-    func updateNSView(_ nsView: NSSlider, context: Context) {
-        // Snap to nearest 30-second interval
-        let valueInSeconds = nsView.doubleValue * 60
-        let snappedSeconds = round(valueInSeconds / 30) * 30
-        let snappedValue = snappedSeconds / 60
-        
-        if value != snappedValue {
-            DispatchQueue.main.async {
-                value = snappedValue
-            }
-        }
-        
-        nsView.doubleValue = snappedValue
-        nsView.trackFillColor = accentColor
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject {
-        let slider: CustomSlider
-        
-        init(_ slider: CustomSlider) {
-            self.slider = slider
-        }
-        
-        @objc func valueChanged(_ sender: NSSlider) {
-            // Snap to nearest 30-second interval
-            let valueInSeconds = sender.doubleValue * 60
-            let snappedSeconds = round(valueInSeconds / 30) * 30
-            let snappedValue = snappedSeconds / 60
-            
-            slider.value = snappedValue
-        }
-    }
-}
-
 struct CustomRuleView: View {
     @AppStorage("reminderInterval") private var reminderInterval = 1200
     @AppStorage("breakDuration") private var breakDuration = 20
@@ -135,10 +65,43 @@ struct CustomRuleView: View {
                         
                         Spacer()
                         
-                        Text(formatTime(reminderInterval))
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                            .monospacedDigit()
+                        // Enhanced time control with buttons
+                        HStack(spacing: 8) {
+                            Button(action: {
+                                let newValue = max(60, reminderInterval - 60)
+                                withAnimation(.spring(response: 0.3)) {
+                                    reminderInterval = newValue
+                                }
+                            }) {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(reminderInterval <= 60)
+                            .opacity(reminderInterval <= 60 ? 0.3 : 1)
+                            
+                            Text(formatTime(reminderInterval))
+                                .font(.system(size: 17, weight: .medium, design: .monospaced))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(4)
+                            
+                            Button(action: {
+                                let newValue = min(7200, reminderInterval + 60)
+                                withAnimation(.spring(response: 0.3)) {
+                                    reminderInterval = newValue
+                                }
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(reminderInterval >= 7200)
+                            .opacity(reminderInterval >= 7200 ? 0.3 : 1)
+                        }
                     }
                     
                     Text("How often should we remind you to take a break?")
@@ -147,12 +110,34 @@ struct CustomRuleView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .lineLimit(nil)
                     
-                    CustomSlider(range: 1...120, value: Binding(
-                        get: { Double(reminderInterval) / 60.0 },
-                        set: { reminderInterval = Int($0 * 60) }
-                    ))
-                    .frame(height: 20)
+                    // Slider with range labels
+                    VStack(spacing: 4) {
+                        ZStack {
+                            CustomSlider(range: 1...120, value: Binding(
+                                get: { Double(reminderInterval) / 60.0 },
+                                set: { reminderInterval = Int($0 * 60) }
+                            ))
+                            .frame(height: 20)
+                            .contentShape(Rectangle())
+                        }
+                        
+                        // Labels for min/max
+                        HStack {
+                            Text("5m")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.secondary.opacity(0.8))
+                            
+                            Spacer()
+                            
+                            Text("2h")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .padding(.horizontal, 4)
+                    }
                 }
+                .contentShape(Rectangle())
+                .background(Color.clear)
                 
                 Divider()
                 
@@ -165,10 +150,43 @@ struct CustomRuleView: View {
                         
                         Spacer()
                         
-                        Text(formatTime(breakDuration))
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                            .monospacedDigit()
+                        // Enhanced time control with buttons
+                        HStack(spacing: 8) {
+                            Button(action: {
+                                let newValue = max(15, breakDuration - 15)
+                                withAnimation(.spring(response: 0.3)) {
+                                    breakDuration = newValue
+                                }
+                            }) {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(breakDuration <= 15)
+                            .opacity(breakDuration <= 15 ? 0.3 : 1)
+                            
+                            Text(formatTime(breakDuration))
+                                .font(.system(size: 17, weight: .medium, design: .monospaced))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(4)
+                            
+                            Button(action: {
+                                let newValue = min(600, breakDuration + 15)
+                                withAnimation(.spring(response: 0.3)) {
+                                    breakDuration = newValue
+                                }
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(breakDuration >= 600)
+                            .opacity(breakDuration >= 600 ? 0.3 : 1)
+                        }
                     }
                     
                     Text("How long should each break last?")
@@ -177,10 +195,33 @@ struct CustomRuleView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .lineLimit(nil)
                     
-                    CustomSlider(range: 0.5...30, value: breakDurationInMinutes)
-                        .frame(height: 20)
+                    // Slider with range labels
+                    VStack(spacing: 4) {
+                        ZStack {
+                            CustomSlider(range: 0.25...10, value: breakDurationInMinutes)
+                                .frame(height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        
+                        // Labels for min/max
+                        HStack {
+                            Text("15s")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.secondary.opacity(0.8))
+                            
+                            Spacer()
+                            
+                            Text("10m")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .padding(.horizontal, 4)
+                    }
                 }
+                .contentShape(Rectangle())
+                .background(Color.clear)
             }
+            .contentShape(Rectangle())
             
             Spacer()
             
@@ -189,11 +230,18 @@ struct CustomRuleView: View {
                 onSave(TimeInterval(reminderInterval))
             }) {
                 Text("Apply")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 36)
+                    .frame(height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(red: 0/255, green: 122/255, blue: 255/255))
+                            .shadow(color: Color(red: 0/255, green: 122/255, blue: 255/255).opacity(0.4), radius: 4, x: 0, y: 2)
+                    )
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 24)
@@ -205,6 +253,7 @@ struct CustomRuleView: View {
                 Color.white.opacity(0.4)
             }
             .cornerRadius(12)
+            .allowsHitTesting(false)
         )
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.98)

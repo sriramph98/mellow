@@ -99,128 +99,110 @@ struct PresetCard: View {
         let textAlignment: TextAlignment = isRunning ? .center : .leading
         let textColor = Color.black.opacity(0.6)
         
-        // Use a Group to conditionally render either a Button (when not flipped) or a regular view (when flipped)
-        return Group {
-            if isFlipped {
-                // When flipped, use a regular view instead of a button
-                GeometryReader { geometry in
-                    ZStack {
+        return Button(action: isFlipped ? {} : {
+            if title == "Custom" && !isRunning {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    isFlipped = true
+                    NotificationCenter.default.post(name: .cardFlipStateChanged, object: nil, userInfo: ["isFlipped": true])
+                }
+            } else {
+                action()
+            }
+        }) {
+            GeometryReader { geometry in
+                ZStack {
+                    // Front side of the card
+                    if !isFlipped {
+                        // Main content
+                        VStack(spacing: 16) {
+                            // Title and description at the top
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(title)
+                                    .font(Font.custom("SF Pro Rounded", size: 17).weight(.bold))
+                                    .foregroundColor(textColor)
+                                    .frame(maxWidth: .infinity, alignment: titleAlignment)
+                                
+                                if !isSelected || !isRunning {
+                                    Text(description)
+                                        .font(Font.custom("SF Pro Rounded", size: 14).weight(.regular))
+                                        .foregroundColor(Color.black.opacity(0.4))  // Set description text opacity to 60%
+                                        .lineSpacing(CGFloat(14) * 0.5) // Adjusted line spacing for 13pt font
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .multilineTextAlignment(textAlignment)
+                                        .frame(maxWidth: .infinity, alignment: titleAlignment)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // Timer controls and settings button
+                            if isSelected {
+                                timerControlsView
+                            }
+                        }
+                        .padding(20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(cardStyle.background.opacity(cardStyle.opacity))
+                        }
+                        
+                        // Unified icon with animation between positions
+                        ZStack {
+                            // Circle background that fades out when running
+                            Circle()
+                                .fill(Color.black.opacity(0.1))
+                                .frame(width: 144, height: 144)
+                                .opacity(isRunning ? 0 : 1) // Fade out circle when running
+                                .scaleEffect(isRunning ? 0.7 : 1) // Scale down circle when running
+                            
+                            Image(systemName: sfSymbol)
+                                .font(.system(size: 60))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(isRunning ? .black : .white)
+                                .opacity(0.6)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
+                        .modifier(IconPathAnimationModifier(isRunning: isRunning, isSelected: isSelected))
+                    } else {
                         // Back side of the card - Custom Rules Interface
                         customRuleInterface
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: isSelected ? Color.black.opacity(0.2) : (isHovering ? Color.black.opacity(0.15) : Color.clear), 
-                            radius: isSelected ? 15 : (isHovering ? 10 : 0), 
-                            x: 0, 
-                            y: isSelected ? 5 : 3)
-                    .contentShape(Rectangle())
-                    .zIndex(10) // Increase z-index when flipped
-                    .frame(minHeight: 420) // Minimum height when flipped, can expand if needed
-                    .onHover { hovering in
-                        isHovering = hovering && !isDisabled
-                        
-                        // Reset position when no longer hovering
-                        if !hovering {
-                            hoverLocation = CGPoint(x: 0.5, y: 0.5)
-                            // Invalidate timer when not hovering
-                            hoverTimer?.invalidate()
-                            hoverTimer = nil
-                        } else {
-                            // Start timer to track mouse position continuously
-                            hoverTimer?.invalidate()
-                            hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { _ in
-                                updateHoverLocation(geometry: geometry)
-                            }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: isSelected ? Color.black.opacity(0.2) : (isHovering ? Color.black.opacity(0.15) : Color.clear), 
+                        radius: isSelected ? 15 : (isHovering ? 10 : 0), 
+                        x: 0, 
+                        y: isSelected ? 5 : 3)
+                .contentShape(Rectangle())
+                .zIndex(isFlipped ? 10 : 0) // Increase z-index when flipped
+                .frame(height: isFlipped ? 420 : 280) // Fixed height when flipped or not
+                .onHover { hovering in
+                    isHovering = hovering && !isDisabled
+                    
+                    // Reset position when no longer hovering
+                    if !hovering {
+                        hoverLocation = CGPoint(x: 0.5, y: 0.5)
+                        // Invalidate timer when not hovering
+                        hoverTimer?.invalidate()
+                        hoverTimer = nil
+                    } else {
+                        // Start timer to track mouse position continuously
+                        hoverTimer?.invalidate()
+                        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { _ in
+                            updateHoverLocation(geometry: geometry)
                         }
                     }
-                    .rotation3DEffect(
-                        Angle(degrees: 180),
-                        axis: (x: 0, y: 1, z: 0)
-                    )
                 }
-            } else {
-                // When not flipped, use a button
-                Button(action: action) {
-                    GeometryReader { geometry in
-                        ZStack {
-                            // Front side of the card
-                            // Main content
-                            VStack(spacing: 16) {
-                                // Title and description at the top
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text(title)
-                                        .font(Font.custom("SF Pro Rounded", size: 17).weight(.bold))
-                                        .foregroundColor(textColor)
-                                        .frame(maxWidth: .infinity, alignment: titleAlignment)
-                                    
-                                    if !isSelected || !isRunning {
-                                        Text(description)
-                                            .font(Font.custom("SF Pro Rounded", size: 14).weight(.regular))
-                                            .foregroundColor(Color.black.opacity(0.4))  // Set description text opacity to 60%
-                                            .lineSpacing(CGFloat(14) * 0.5) // Adjusted line spacing for 13pt font
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .multilineTextAlignment(textAlignment)
-                                            .frame(maxWidth: .infinity, alignment: titleAlignment)
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                // Timer controls and settings button
-                                if isSelected {
-                                    timerControlsView
-                                }
-                            }
-                            .padding(20)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(cardStyle.background.opacity(cardStyle.opacity))
-                            }
-                            
-                            // Unified icon with animation between positions
-                            ZStack {
-                                // Circle background that fades out when running
-                                Circle()
-                                    .fill(Color.black.opacity(0.1))
-                                    .frame(width: 144, height: 144)
-                                    .opacity(isRunning ? 0 : 1) // Fade out circle when running
-                                    .scaleEffect(isRunning ? 0.7 : 1) // Scale down circle when running
-                                
-                                Image(systemName: sfSymbol)
-                                    .font(.system(size: 60))
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(isRunning ? .black : .white)
-                                    .opacity(0.6)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
-                            .modifier(IconPathAnimationModifier(isRunning: isRunning, isSelected: isSelected))
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: isSelected ? Color.black.opacity(0.2) : (isHovering ? Color.black.opacity(0.15) : Color.clear), 
-                                radius: isSelected ? 15 : (isHovering ? 10 : 0), 
-                                x: 0, 
-                                y: isSelected ? 5 : 3)
-                        .contentShape(Rectangle())
-                        .zIndex(0)
-                        .onHover { hovering in
-                            isHovering = hovering && !isDisabled
-                            
-                            // Reset position when no longer hovering
-                            if !hovering {
-                                hoverLocation = CGPoint(x: 0.5, y: 0.5)
-                                // Invalidate timer when not hovering
-                                hoverTimer?.invalidate()
-                                hoverTimer = nil
-                            } else {
-                                // Start timer to track mouse position continuously
-                                hoverTimer?.invalidate()
-                                hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { _ in
-                                    updateHoverLocation(geometry: geometry)
-                                }
-                            }
-                        }
-                        // Apply 3D effects only when not flipped
+                .onDisappear {
+                    // Clean up timer if view disappears
+                    hoverTimer?.invalidate()
+                    hoverTimer = nil
+                }
+                .background(Color.clear) // Just to allow for geometry info
+                // Apply 3D effects only when not flipped
+                .if(!isFlipped) { view in
+                    view
                         .rotation3DEffect(
                             Angle(degrees: isHovering ? CGFloat(hoverLocation.x - 0.5) * CGFloat(7) : 0),
                             axis: (x: 0, y: 1, z: 0),
@@ -235,11 +217,10 @@ struct PresetCard: View {
                             anchorZ: 0,
                             perspective: 0.5
                         )
-                    }
                 }
-                .buttonStyle(.plain)
+                // Add flip animation
                 .rotation3DEffect(
-                    .zero,
+                    isFlipped ? Angle(degrees: 180) : .zero,
                     axis: (x: 0, y: 1, z: 0)
                 )
             }
@@ -284,18 +265,9 @@ struct PresetCard: View {
                 
                 Spacer()
             } else {
-                // For Custom preset, place settings and play button together
-                if isCustom {
-                    HStack(spacing: 8) {
-                        playButton
-                        settingsButton
-                    }
-                    Spacer()
-                } else {
-                    // For other presets, just show play button
-                    playButton
-                    Spacer()
-                }
+                // All presets just show play button
+                playButton
+                Spacer()
             }
         }
         .transition(.asymmetric(
@@ -482,9 +454,8 @@ struct PresetCard: View {
                         .font(.system(size: 11, design: .rounded))
                         .foregroundColor(.black.opacity(0.4))
                     
-                    CustomSlider(range: 5...60, value: $customReminderInterval)
-                        .frame(height: 20)
-                        .contentShape(Rectangle())
+                    Slider(value: $customReminderInterval, in: 5...60)
+                        .accentColor(Color.blue.opacity(0.7))
                     
                     Text("60m")
                         .font(.system(size: 11, design: .rounded))
@@ -520,9 +491,8 @@ struct PresetCard: View {
                         .font(.system(size: 11, design: .rounded))
                         .foregroundColor(.black.opacity(0.4))
                     
-                    CustomSlider(range: 0.25...10, value: $customBreakDuration)
-                        .frame(height: 20)
-                        .contentShape(Rectangle())
+                    Slider(value: $customBreakDuration, in: 0.25...10)
+                        .accentColor(Color.blue.opacity(0.7))
                     
                     Text("10m")
                         .font(.system(size: 11, design: .rounded))
@@ -618,6 +588,13 @@ struct HomeView: View {
     @State private var notificationObserver: NSObjectProtocol? = nil
     @Namespace private var animation
     
+    // Define the columns for the LazyVGrid
+    private let columns = [
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20),
+        GridItem(.flexible(), spacing: 20)
+    ]
+    
     init(
         timeInterval: TimeInterval,
         timerState: TimerState,
@@ -647,119 +624,53 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 
                 // Preset Cards with 16px spacing
-                HStack(spacing: 16) {
-                    // Card container with reduced width
-                    VStack {
-                        PresetCard(
-                            title: "20-20-20 Rule",
-                            isSelected: selectedPreset == "20-20-20 Rule",
-                            description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "20-20-20 Rule"
-                                    onTimeIntervalChange(1200)
-                                }
-                            },
-                            isDisabled: (isRunning && selectedPreset != "20-20-20 Rule") || isAnyCardFlipped,
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "20-20-20 Rule",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
+                LazyVGrid(columns: columns, spacing: 20) {
+                    PresetCard(
+                        title: "20-20-20 Rule",
+                        isSelected: selectedPreset == "20-20-20 Rule",
+                        description: "Look at something 20 feet away for 20 seconds every 20 minutes.",
+                        action: { selectedPreset = "20-20-20 Rule" },
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "20-20-20 Rule",
+                        onStartStop: toggleTimer,
+                        onPauseResume: togglePauseResume
+                    )
+                    .matchedGeometryEffect(id: "20-20-20 Rule", in: animation)
+                    .frame(minHeight: 280)
                     
-                    VStack {
-                        PresetCard(
-                            title: "Pomodoro Technique",
-                            isSelected: selectedPreset == "Pomodoro Technique",
-                            description: "Focus for 25 minutes, then take a 5-minute break to stay productive.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "Pomodoro Technique"
-                                    onTimeIntervalChange(1500)
-                                }
-                            },
-                            isDisabled: (isRunning && selectedPreset != "Pomodoro Technique") || isAnyCardFlipped,
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "Pomodoro Technique",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
+                    PresetCard(
+                        title: "Pomodoro Technique",
+                        isSelected: selectedPreset == "Pomodoro Technique",
+                        description: "Work for 25 minutes, then take a 5-minute break. After 4 cycles, take a longer break.",
+                        action: { selectedPreset = "Pomodoro Technique" },
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "Pomodoro Technique",
+                        onStartStop: toggleTimer,
+                        onPauseResume: togglePauseResume
+                    )
+                    .matchedGeometryEffect(id: "Pomodoro Technique", in: animation)
+                    .frame(minHeight: 280)
                     
-                    VStack {
-                        PresetCard(
-                            title: "Custom",
-                            isSelected: selectedPreset == "Custom",
-                            description: "Set your own rules to match your workflow.",
-                            action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedPreset = "Custom"
-                                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                        onTimeIntervalChange(appDelegate.customInterval)
-                                    }
-                                }
-                            },
-                            isCustom: true,
-                            onModify: nil,
-                            isDisabled: isRunning && selectedPreset != "Custom",
-                            namespace: animation,
-                            timerState: timerState,
-                            isRunning: isRunning && selectedPreset == "Custom",
-                            onStartStop: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    isRunning.toggle()
-                                }
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    if isRunning {
-                                        appDelegate.startSelectedTechnique(technique: selectedPreset)
-                                    } else {
-                                        appDelegate.stopTimer()
-                                    }
-                                }
-                            },
-                            onPauseResume: {
-                                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                                    appDelegate.togglePauseTimer()
-                                }
-                            }
-                        )
-                    }
-                    .frame(width: 280) // Changed from 200 to 280
+                    PresetCard(
+                        title: "Custom",
+                        isSelected: selectedPreset == "Custom",
+                        description: "Set your own rules to match your workflow.",
+                        action: {
+                            // When the Custom card is clicked, select it and flip it
+                            selectedPreset = "Custom" 
+                            // The flip action is handled inside the PresetCard itself
+                        },
+                        isCustom: true,
+                        namespace: animation,
+                        timerState: timerState,
+                        isRunning: isRunning && selectedPreset == "Custom",
+                        onStartStop: toggleTimer,
+                        onPauseResume: togglePauseResume
+                    )
+                    .matchedGeometryEffect(id: "Custom", in: animation)
+                    .frame(minHeight: 280)
                 }
                 .frame(minHeight: isAnyCardFlipped ? 420 : 280)
                 .padding(.horizontal, 24)
@@ -849,15 +760,21 @@ struct HomeView: View {
                 }
             }
             
-            // Register for card flip state change notifications
-            notificationObserver = NotificationCenter.default.addObserver(forName: .cardFlipStateChanged, object: nil, queue: .main) { notification in
+            // Setup notification observer for card flip state
+            notificationObserver = NotificationCenter.default.addObserver(
+                forName: .cardFlipStateChanged,
+                object: nil,
+                queue: .main
+            ) { notification in
                 if let isFlipped = notification.userInfo?["isFlipped"] as? Bool {
-                    isAnyCardFlipped = isFlipped
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        self.isAnyCardFlipped = isFlipped
+                    }
                 }
             }
         }
         .onDisappear {
-            // Remove observer
+            // Clean up notification observer
             if let observer = notificationObserver {
                 NotificationCenter.default.removeObserver(observer)
             }
@@ -877,6 +794,31 @@ struct HomeView: View {
                     NotificationCenter.default.post(name: .dismissCustomSettings, object: nil)
                 }
         )
+    }
+    
+    private func toggleTimer() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            isRunning.toggle()
+        }
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            if isRunning {
+                appDelegate.startSelectedTechnique(technique: selectedPreset)
+            } else {
+                appDelegate.stopTimer()
+            }
+        }
+    }
+    
+    private func togglePauseResume() {
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            appDelegate.togglePauseTimer()
+        }
+    }
+    
+    private func onTimeIntervalChange(_ interval: Double) {
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            appDelegate.customInterval = interval
+        }
     }
 }
 
