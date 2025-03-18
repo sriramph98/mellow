@@ -9,7 +9,7 @@ struct PillButtonStyle: ButtonStyle {
         HStack(alignment: .center, spacing: 10) {
             configuration.label
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .frame(minWidth: 8, alignment: .center)
         .background(

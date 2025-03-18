@@ -125,14 +125,6 @@ class ScreenSaverManager: ObservableObject {
         if success == kIOReturnSuccess {
             self.assertionID = assertionID
         }
-        
-        var secondAssertionID: IOPMAssertionID = 0
-        _ = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "Mellow Break in Progress" as CFString,
-            &secondAssertionID
-        )
     }
     
     func allowScreenSaver() {

@@ -111,14 +111,14 @@ struct CustomRuleView: View {
             HStack {
                 Text("Custom Rule")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 24))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 32, height: 32)
@@ -131,19 +131,19 @@ struct CustomRuleView: View {
                     HStack {
                         Text("Break Interval")
                             .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
                         Text(formatTime(reminderInterval))
                             .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(.secondary)
                             .monospacedDigit()
                     }
                     
                     Text("How often should we remind you to take a break?")
                         .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .lineLimit(nil)
                     
@@ -155,26 +155,25 @@ struct CustomRuleView: View {
                 }
                 
                 Divider()
-                    .background(Color.white.opacity(0.1))
                 
                 // Break Duration Setting
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Break Duration")
                             .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
                         Text(formatTime(breakDuration))
                             .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(.secondary)
                             .monospacedDigit()
                     }
                     
                     Text("How long should each break last?")
                         .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .lineLimit(nil)
                     
@@ -191,21 +190,22 @@ struct CustomRuleView: View {
             }) {
                 Text("Apply")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 36)
             }
-            .buttonStyle(PillButtonStyle(customBackground: accentColor))
+            .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 24)
         .frame(width: 360)
         .background(
-            VisualEffectView(material: .dark, blendingMode: .behindWindow)
-                .edgesIgnoringSafeArea(.all)
+            ZStack {
+                VisualEffectView(material: .windowBackground, blendingMode: .behindWindow)
+                    .ignoresSafeArea(.all)
+                Color.white.opacity(0.4)
+            }
+            .cornerRadius(12)
         )
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.98)
         .offset(y: isAppearing ? 0 : -10)

@@ -65,6 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     private var pausedTimeRemaining: TimeInterval?
     var overlayDismissed = false
     @Published var homeWindowInteractionDisabled = false
+    private var assertionID: IOPMAssertionID = 0
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -331,10 +332,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                         // Show only seconds if less than 1 minute
                         if minutes == 0 {
                             timerState.timeString = String(format: "%ds", seconds)
-                            button.title = String(format: " ⏸ %ds", seconds)
+                            button.title = String(format: " ⏸ %@", timerState.timeString)
                         } else {
                             timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                            button.title = String(format: " ⏸ %d:%02d", minutes, seconds)
+                            button.title = String(format: " ⏸ %@", timerState.timeString)
                         }
                     }
                 } else if let nextBreak = nextBreakTime {
@@ -346,10 +347,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                         // Show only seconds if less than 1 minute
                         if minutes == 0 {
                             timerState.timeString = String(format: "%ds", seconds)
-                            button.title = String(format: " %ds", seconds)
+                            button.title = String(format: " %@", timerState.timeString)
                         } else {
                             timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                            button.title = String(format: " %d:%02d", minutes, seconds)
+                            button.title = String(format: " %@", timerState.timeString)
                         }
                     } else {
                         timerState.timeString = "0"
@@ -442,6 +443,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             // Get the current count
             let currentCount = pomodoroCount
             
+            // Prevent screen sleep when showing blur view
+            var assertionID: IOPMAssertionID = 0
+            let success = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypeNoDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "Break time" as CFString,
+                &assertionID
+            )
+            
+            if success == kIOReturnSuccess {
+                self.assertionID = assertionID
+            }
+            
             // Create blur windows for each screen
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
@@ -464,6 +478,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                                     self?.blurWindow = nil
                                     self?.blurWindows.forEach { $0.orderOut(nil) }
                                     self?.blurWindows.removeAll()
+                                    
+                                    // Release screen sleep prevention
+                                    if let assertionID = self?.assertionID, assertionID != 0 {
+                                        IOPMAssertionRelease(assertionID)
+                                        self?.assertionID = 0
+                                    }
+                                    
                                     // Restart timer after break
                                     self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
                                     self?.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
@@ -494,6 +515,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
             
         } catch {
+            // Release screen sleep prevention on error
+            if assertionID != 0 {
+                IOPMAssertionRelease(assertionID)
+                assertionID = 0
+            }
             handleError(error)
         }
     }
@@ -513,9 +539,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         window.acceptsMouseMovedEvents = true
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        
-        // Prevent system sleep during blur view
-        window.level = .screenSaver
         
         return window
     }
@@ -586,6 +609,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 
                 self.blurWindow = nil
                 self.breakSound?.stop()
+                
+                // Release screen sleep prevention
+                if self.assertionID != 0 {
+                    IOPMAssertionRelease(self.assertionID)
+                    self.assertionID = 0
+                }
                 
                 // Handle Pomodoro count and start next timer
                 if self.currentTechnique == "Pomodoro Technique" {
@@ -739,6 +768,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func stopTimer() {
+        // Dismiss any existing overlay first
+        if let window = blurWindow {
+            window.orderOut(nil)
+            blurWindow = nil
+            blurWindows.forEach { $0.orderOut(nil) }
+            blurWindows.removeAll()
+        }
+        
         timer?.invalidate()
         timer = nil
         timerState.isPaused = false
@@ -765,6 +802,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             if let hostingView = blurWindow.contentView as? NSHostingView<BlurView> {
                 hostingView.rootView.screenSaverManager.allowScreenSaver()
             }
+        }
+        
+        // Release screen sleep prevention
+        if assertionID != 0 {
+            IOPMAssertionRelease(assertionID)
+            assertionID = 0
         }
         
         updateMenuBarTitle()
@@ -827,6 +870,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 self.blurWindows.removeAll()
                 self.blurWindow = nil
                 self.breakSound?.stop()
+                
+                // Release screen sleep prevention
+                if self.assertionID != 0 {
+                    IOPMAssertionRelease(self.assertionID)
+                    self.assertionID = 0
+                }
                 
                 // Handle Pomodoro count when skipping break
                 if self.currentTechnique == "Pomodoro Technique" {
@@ -989,7 +1038,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func updateTimer() {
-        guard let nextBreak = nextBreakTime else { return }
+        guard let nextBreak = nextBreakTime, timer != nil else { return }  // Return early if timer is stopped
         
         let timeRemaining = nextBreak.timeIntervalSinceNow
         
@@ -997,8 +1046,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             let minutes = Int(timeRemaining) / 60
             let seconds = Int(timeRemaining) % 60
             
-            // Show overlay when 10 seconds remaining
-            if timeRemaining <= 10 && blurWindow == nil && !timerState.isPaused {
+            // Only show overlay when timer is running and not paused
+            if timeRemaining <= 10 && blurWindow == nil && !timerState.isPaused && timer != nil {
                 showTestBlurScreen(timeRemaining: timeRemaining)
             }
             
@@ -1025,8 +1074,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                     button.title = " 0"
                 }
                 
-                self.showBlurScreen(forTechnique: self.currentTechnique)
-                self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                // Only show blur screen if timer is running and not paused
+                // Also check if timer wasn't stopped during the async dispatch
+                if timer != nil && !timerState.isPaused && nextBreakTime != nil {
+                    self.showBlurScreen(forTechnique: self.currentTechnique)
+                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                }
             }
         }
     }
@@ -1148,6 +1201,61 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
             timerState.isPaused = false
             updateMenuBarTitle()
+        }
+    }
+    
+    func showBlurWindow() {
+        if blurWindow == nil {
+            blurWindow = NSWindow(
+                contentRect: NSScreen.main?.frame ?? .zero,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            blurWindow?.level = .floating
+            blurWindow?.backgroundColor = .clear
+            blurWindow?.isOpaque = false
+            blurWindow?.hasShadow = false
+            
+            // Create BlurView with required parameters
+            let blurView = BlurView(
+                technique: currentTechnique ?? "Custom",
+                screen: NSScreen.main ?? NSScreen.screens[0],
+                pomodoroCount: pomodoroCount,
+                isAnimatingOut: .init(
+                    get: { self.isAnimatingOut },
+                    set: { [weak self] newValue in 
+                        self?.isAnimatingOut = newValue
+                    }
+                ),
+                showContent: true
+            )
+            blurWindow?.contentView = NSHostingView(rootView: blurView)
+        }
+        
+        blurWindow?.makeKeyAndOrderFront(nil)
+        
+        // Prevent screen sleep using IOKit
+        var assertionID: IOPMAssertionID = 0
+        let success = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypeNoDisplaySleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "Break time" as CFString,
+            &assertionID
+        )
+        
+        if success == kIOReturnSuccess {
+            self.assertionID = assertionID
+        }
+    }
+    
+    func hideBlurWindow() {
+        blurWindow?.orderOut(nil)
+        
+        // Release the display sleep assertion if we have one
+        if assertionID != 0 {
+            IOPMAssertionRelease(assertionID)
+            assertionID = 0
         }
     }
 }
