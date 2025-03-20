@@ -207,6 +207,7 @@ struct BlurView: View {
         if fromButton {
             withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                 showingSkipConfirmation = true
+                escapeCount = 0 // Reset escape count when showing skip confirmation
             }
         } else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -358,6 +359,10 @@ struct BlurView: View {
                 alpha: 0.3
             )
             
+            // Add KeyEventHandlingView to capture escape key events
+            KeyEventHandlingView(onEscape: handleEscape)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
             if showContent {
                 VStack(spacing: 32) {
                     // Current time - always visible
@@ -432,6 +437,7 @@ struct BlurView: View {
                                 Button(action: {
                                     withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                                         showingSkipConfirmation = false
+                                        escapeCount = 0 // Reset escape count when continuing the break
                                     }
                                 }) {
                                     Text("Continue Break")
