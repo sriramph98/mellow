@@ -1,5 +1,6 @@
 import Cocoa
 import SwiftUI
+import ApplicationServices
 
 enum MellowError: Error {
     case invalidTechnique
@@ -68,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     var overlayDismissed = false
     @Published var homeWindowInteractionDisabled = false
     private var assertionID: IOPMAssertionID = 0
+    private var hasValidPowerAssertion: Bool = false
     
     // Helper function to configure window dragging behavior
     private func configureWindowDragging(for window: NSWindow, allowDragging: Bool = false) {
@@ -79,8 +81,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         
-        // Remove/comment any notification permission requests here
-        // UNUserNotificationCenter.current().requestAuthorization...
+        // Check accessibility permission
+        checkAccessibilityPermission()
         
         setupMinimalMainMenu()
         
@@ -91,9 +93,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         createAndShowHomeWindow()
         setupMenuBar()
         
-        DispatchQueue.main.async { [weak self] in
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            self?.homeWindow?.makeKeyAndOrderFront(nil)
+        // Only show the home window if overlay hasn't been dismissed
+        if !overlayDismissed {
+            DispatchQueue.main.async { [weak self] in
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                self?.homeWindow?.makeKeyAndOrderFront(nil)
+            }
         }
         
         // Add observer for screen lock/unlock notifications
@@ -125,6 +130,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             name: NSNotification.Name("com.apple.screensaver.didstop"),
             object: nil
         )
+    }
+    
+    private func checkAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        let accessibilityEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        
+        if !accessibilityEnabled {
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Accessibility Permission Required"
+                alert.informativeText = "Mellow needs accessibility permission to show break reminders above other windows. Please grant permission in System Settings > Privacy & Security > Accessibility."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Open System Settings")
+                alert.addButton(withTitle: "Later")
+                
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                }
+            }
+        }
     }
     
     private func setupMinimalMainMenu() {
@@ -162,7 +188,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     
     private func createAndShowHomeWindow() {
         let homeView = HomeView(
-            timeInterval: timeInterval,
+            timeInterval: .init(
+                get: { self.timeInterval },
+                set: { self.timeInterval = $0 }
+            ),
             timerState: timerState,
             onTimeIntervalChange: { [weak self] newValue in
                 self?.timeInterval = newValue
@@ -393,6 +422,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     @objc private func takeBreakNow() {
+        overlayDismissed = true
         showBlurScreen(forTechnique: currentTechnique)
     }
     
@@ -421,6 +451,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     @objc private func showHomeScreen() {
+        // Only proceed if overlay hasn't been dismissed
+        if overlayDismissed {
+            return
+        }
+        
         // Only set activation policy if window isn't visible
         if homeWindow?.isVisible != true {
             NSApp.setActivationPolicy(.regular)
@@ -443,42 +478,63 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         NSApp.activate(ignoringOtherApps: true)
     }
     
+    private func preventDisplaySleep() {
+        // Only attempt if we don't already have a valid assertion
+        guard !hasValidPowerAssertion else { return }
+        
+        var localAssertionID: IOPMAssertionID = 0
+        let success = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,  // Changed assertion type
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "Mellow break time" as CFString,
+            &localAssertionID
+        )
+        
+        if success == kIOReturnSuccess {
+            assertionID = localAssertionID
+            hasValidPowerAssertion = true
+        } else {
+            print("Failed to create power assertion with error: \(success)")
+            // Reset state
+            assertionID = 0
+            hasValidPowerAssertion = false
+        }
+    }
+    
+    private func allowDisplaySleep() {
+        if hasValidPowerAssertion && assertionID != 0 {
+            let success = IOPMAssertionRelease(assertionID)
+            if success == kIOReturnSuccess {
+                assertionID = 0
+                hasValidPowerAssertion = false
+            } else {
+                print("Failed to release power assertion with error: \(success)")
+            }
+        }
+    }
+    
     func showBlurScreen(forTechnique technique: String? = nil) {
         do {
             // Check if overlay is enabled
             guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
             
-            guard blurWindow == nil else { return }
+            // No longer need to guard blurWindow since we clean up beforehand
             isAnimatingOut = false
-            blurWindows.removeAll()
             
-            // Get the current count
-            let currentCount = pomodoroCount
-            
-            // Prevent screen sleep when showing blur view
-            var assertionID: IOPMAssertionID = 0
-            let success = IOPMAssertionCreateWithName(
-                kIOPMAssertionTypeNoDisplaySleep as CFString,
-                IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                "Break time" as CFString,
-                &assertionID
-            )
-            
-            if success == kIOReturnSuccess {
-                self.assertionID = assertionID
-            }
+            // Prevent display sleep before showing windows
+            preventDisplaySleep()
             
             // Create blur windows for each screen
             for screen in NSScreen.screens {
                 let window = try createBlurWindow(frame: screen.frame)
                 
                 // Check if this is the internal display
-                let isInternalDisplay = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+                let isInternalDisplay = isInternalDisplay(screen)
                 
                 let blurView = BlurView(
                     technique: technique ?? currentTechnique ?? "Custom",
                     screen: screen,
-                    pomodoroCount: currentCount,
+                    pomodoroCount: pomodoroCount,
                     isAnimatingOut: .init(
                         get: { self.isAnimatingOut },
                         set: { [weak self] newValue in 
@@ -486,16 +542,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                             if newValue {
                                 // Clear the window references after animation
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                                    self?.blurWindow?.orderOut(nil)
-                                    self?.blurWindow = nil
                                     self?.blurWindows.forEach { $0.orderOut(nil) }
                                     self?.blurWindows.removeAll()
                                     
                                     // Release screen sleep prevention
-                                    if let assertionID = self?.assertionID, assertionID != 0 {
-                                        IOPMAssertionRelease(assertionID)
-                                        self?.assertionID = 0
-                                    }
+                                    self?.allowDisplaySleep()
                                     
                                     // Restart timer after break
                                     self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
@@ -527,13 +578,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
             
         } catch {
-            // Release screen sleep prevention on error
-            if assertionID != 0 {
-                IOPMAssertionRelease(assertionID)
-                assertionID = 0
-            }
+            cleanupBlurWindows()
+            allowDisplaySleep()
             handleError(error)
         }
+    }
+    
+    // Helper function to determine if a screen is internal
+    private func isInternalDisplay(_ screen: NSScreen) -> Bool {
+        // Method 1: Check using CGMainDisplayID
+        let mainDisplayCheck = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+        
+        // Method 2: Check if it's the first screen
+        let isFirstScreen = NSScreen.screens.first == screen
+        
+        // Method 3: Check if it's the main screen
+        let isMainScreen = screen == NSScreen.main
+        
+        // Return true if any of the checks pass
+        return mainDisplayCheck || isFirstScreen || isMainScreen
     }
     
     private func createBlurWindow(frame: NSRect) throws -> NSWindow {
@@ -551,6 +614,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         window.acceptsMouseMovedEvents = true
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        
+        // Create a visual effect view for the window background
+        let visualEffect = NSVisualEffectView(frame: window.contentView?.bounds ?? .zero)
+        visualEffect.material = .fullScreenUI
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        visualEffect.wantsLayer = true
+        
+        // Force dark appearance for consistent look
+        if let darkAppearance = NSAppearance(named: .darkAqua) {
+            visualEffect.appearance = darkAppearance
+        }
+        
+        // Add semi-transparent black background
+        if let layer = visualEffect.layer {
+            layer.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
+        }
+        
+        // Make visual effect view resize with window
+        visualEffect.autoresizingMask = [.width, .height]
+        
+        // Set as window background
+        window.contentView = visualEffect
         
         // Disable window dragging
         configureWindowDragging(for: window, allowDragging: false)
@@ -626,10 +712,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 self.breakSound?.stop()
                 
                 // Release screen sleep prevention
-                if self.assertionID != 0 {
-                    IOPMAssertionRelease(self.assertionID)
-                    self.assertionID = 0
-                }
+                self.allowDisplaySleep()
                 
                 // Handle Pomodoro count and start next timer
                 if self.currentTechnique == "Pomodoro Technique" {
@@ -868,10 +951,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         }
         
         // Release screen sleep prevention
-        if assertionID != 0 {
-            IOPMAssertionRelease(assertionID)
-            assertionID = 0
-        }
+        allowDisplaySleep()
         
         updateMenuBarTitle()
         updateMainMenu()
@@ -935,10 +1015,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 self.breakSound?.stop()
                 
                 // Release screen sleep prevention
-                if self.assertionID != 0 {
-                    IOPMAssertionRelease(self.assertionID)
-                    self.assertionID = 0
-                }
+                self.allowDisplaySleep()
                 
                 // Handle Pomodoro count when skipping break
                 if self.currentTechnique == "Pomodoro Technique" {
@@ -1101,50 +1178,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func updateTimer() {
-        guard let nextBreak = nextBreakTime, timer != nil else { return }  // Return early if timer is stopped
+        guard let nextBreak = nextBreakTime, timer != nil else { return }
         
         let timeRemaining = nextBreak.timeIntervalSinceNow
         
-        if timeRemaining > 0 {
-            let minutes = Int(timeRemaining) / 60
-            let seconds = Int(timeRemaining) % 60
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             
-            // Only show overlay when timer is running and not paused
-            if timeRemaining <= 10 && blurWindow == nil && !timerState.isPaused && timer != nil {
-                showTestBlurScreen(timeRemaining: timeRemaining)
-            }
-            
-            // Update timer state and menu bar
-            let newTimeString: String
-            if minutes == 0 {
-                newTimeString = String(format: "%ds", seconds)
-            } else {
-                newTimeString = String(format: "%d:%02d", minutes, seconds)
-            }
-            
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+            if timeRemaining > 0 {
+                let minutes = Int(timeRemaining) / 60
+                let seconds = Int(timeRemaining) % 60
+                
+                // Only show overlay when timer is running and not paused
+                if timeRemaining <= 10 && self.blurWindow == nil && !self.timerState.isPaused && self.timer != nil {
+                    self.showTestBlurScreen(timeRemaining: timeRemaining)
+                }
+                
+                // Update timer state and menu bar
+                let newTimeString: String
+                if minutes == 0 {
+                    newTimeString = String(format: "%ds", seconds)
+                } else {
+                    newTimeString = String(format: "%d:%02d", minutes, seconds)
+                }
+                
                 self.timerState.timeString = newTimeString
                 if let button = self.statusItem?.button {
                     button.title = " \(newTimeString)"
                 }
-            }
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.timerState.timeString = "0"
-                if let button = self.statusItem?.button {
-                    button.title = " 0"
-                }
-                
-                // Only show blur screen if timer is running and not paused
-                // Also check if timer wasn't stopped during the async dispatch
-                if timer != nil && !timerState.isPaused && nextBreakTime != nil {
-                    self.showBlurScreen(forTechnique: self.currentTechnique)
-                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+            } else {
+                // Check if timer has reached zero
+                if timeRemaining <= 0 {
+                    // Ensure timer is valid and not paused
+                    guard self.timer?.isValid == true && !self.timerState.isPaused else { return }
+                    
+                    // Store current technique and clean up timer state atomically
+                    let currentTech = self.currentTechnique
+                    self.cleanupTimerState()
+                    
+                    // Show blur screen with proper state management
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
+                        // Force cleanup any existing blur windows
+                        self.cleanupBlurWindows()
+                        // Show new blur screen
+                        self.showBlurScreen(forTechnique: currentTech)
+                    }
                 }
             }
         }
+    }
+    
+    // New helper method for timer cleanup
+    private func cleanupTimerState() {
+        self.timer?.invalidate()
+        self.timer = nil
+        self.nextBreakTime = nil
+        self.isAnimatingOut = false
+    }
+    
+    // New helper method for blur window cleanup
+    private func cleanupBlurWindows() {
+        self.blurWindows.forEach { $0.orderOut(nil) }
+        self.blurWindows.removeAll()
+        self.blurWindow?.orderOut(nil)
+        self.blurWindow = nil
     }
     
     func showTestBlurScreen(timeRemaining: TimeInterval = 10) {
@@ -1162,10 +1260,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             isAnimatingOut = false
             overlayDismissed = false
             
-            // Only create window for built-in display
-            if let screen = NSScreen.screens.first(where: { screen in
-                screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
-            }) {
+            // Prevent display sleep
+            preventDisplaySleep()
+            
+            // Try to find the internal display
+            var targetScreen: NSScreen? = nil
+            
+            // First try to find the internal display
+            for screen in NSScreen.screens {
+                if isInternalDisplay(screen) {
+                    targetScreen = screen
+                    break
+                }
+            }
+            
+            // If no internal display found, fall back to main screen
+            if targetScreen == nil {
+                targetScreen = NSScreen.main ?? NSScreen.screens.first
+            }
+            
+            // Create window if we have a valid screen
+            if let screen = targetScreen {
                 // Get menu bar height and add padding
                 let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 24
                 let topPadding: CGFloat = 16 // Space below menu bar
@@ -1188,10 +1303,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                             if newValue {
                                 // Clear the window references after animation
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                                    self?.blurWindow?.orderOut(nil)
-                                    self?.blurWindow = nil
                                     self?.blurWindows.forEach { $0.orderOut(nil) }
                                     self?.blurWindows.removeAll()
+                                    
+                                    // Release screen sleep prevention
+                                    self?.allowDisplaySleep()
+                                    
+                                    // Restart timer after break
+                                    self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
+                                    self?.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
+                                        self?.updateTimer()
+                                    }
+                                    if let timer = self?.timer {
+                                        RunLoop.main.add(timer, forMode: .common)
+                                    }
                                 }
                             }
                         }
@@ -1199,17 +1324,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                     initialTimeRemaining: timeRemaining,
                     onComplete: { [weak self] in
                         // Take a break immediately
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        DispatchQueue.main.async { [weak self] in
                             if let self = self {
-                                // Reset the timer
+                                // Reset the timer first to prevent any race conditions
                                 self.timer?.invalidate()
                                 self.timer = nil
-                                
-                                // Show blur screen immediately
-                                self.showBlurScreen(forTechnique: self.currentTechnique)
-                                
-                                // Set next break time but don't start timer yet
                                 self.nextBreakTime = nil
+                                
+                                // Show blur screen with a slight delay to ensure clean transition
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    self.showBlurScreen(forTechnique: self.currentTechnique)
+                                }
                             }
                         }
                     }
@@ -1234,6 +1359,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
             
         } catch {
+            // Release screen sleep prevention on error
+            allowDisplaySleep()
             handleError(error)
         }
     }
@@ -1303,27 +1430,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         blurWindow?.makeKeyAndOrderFront(nil)
         
         // Prevent screen sleep using IOKit
-        var assertionID: IOPMAssertionID = 0
-        let success = IOPMAssertionCreateWithName(
-            kIOPMAssertionTypeNoDisplaySleep as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "Break time" as CFString,
-            &assertionID
-        )
-        
-        if success == kIOReturnSuccess {
-            self.assertionID = assertionID
-        }
+        preventDisplaySleep()
     }
     
     func hideBlurWindow() {
         blurWindow?.orderOut(nil)
-        
-        // Release the display sleep assertion if we have one
-        if assertionID != 0 {
-            IOPMAssertionRelease(assertionID)
-            assertionID = 0
-        }
+        allowDisplaySleep()
     }
 }
 

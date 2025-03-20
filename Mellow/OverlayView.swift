@@ -143,7 +143,10 @@ struct OverlayView: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isAnimatingOut = true
                 }
-                onComplete()
+                // Ensure onComplete is called after animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onComplete()
+                }
             }
         }
         .onReceive(progressTimer) { _ in

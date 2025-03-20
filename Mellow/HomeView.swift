@@ -484,11 +484,11 @@ struct PresetCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                         
                         VStack(spacing: 4) {
-                            CustomSlider(range: 5...60, value: $customReminderInterval)
+                            CustomSlider(range: 1...60, value: $customReminderInterval)
                                 .frame(height: 20)
                             
                             HStack {
-                                Text("5m")
+                                Text("1m")
                                     .font(.system(size: 11, design: .rounded))
                                     .foregroundColor(.black.opacity(0.4))
                                 
@@ -624,9 +624,9 @@ struct AmoebaTrasitionModifier: ViewModifier {
 }
 
 struct HomeView: View {
-    let timeInterval: TimeInterval
+    @Binding var timeInterval: TimeInterval
+    @ObservedObject var timerState: TimerState
     let onTimeIntervalChange: (TimeInterval) -> Void
-    @StateObject private var timerState: TimerState
     @State private var selectedPreset: String = "20-20-20 Rule"
     @State private var isRunning = false
     @State private var isFooterVisible = false
@@ -636,14 +636,15 @@ struct HomeView: View {
     @State private var notificationObserver: NSObjectProtocol? = nil
     @State private var showSettings = false
     @Namespace private var animation
+    @State private var hasAccessibilityPermission: Bool = false
     
     init(
-        timeInterval: TimeInterval,
+        timeInterval: Binding<TimeInterval>,
         timerState: TimerState,
         onTimeIntervalChange: @escaping (TimeInterval) -> Void
     ) {
-        self.timeInterval = timeInterval
-        self._timerState = StateObject(wrappedValue: timerState)
+        self._timeInterval = timeInterval
+        self.timerState = timerState
         self.onTimeIntervalChange = onTimeIntervalChange
     }
     
@@ -876,6 +877,13 @@ struct HomeView: View {
                 .transition(.scale(scale: 0.95).combined(with: .opacity))
                 .zIndex(100)
             }
+            
+            // Accessibility overlay
+            if !hasAccessibilityPermission {
+                AccessibilityOverlayView {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                }
+            }
         }
         .onAppear {
             // Animate content first, then footer
@@ -908,6 +916,8 @@ struct HomeView: View {
                     isAnyCardFlipped = isFlipped
                 }
             }
+            
+            checkAccessibilityPermission()
         }
         .onDisappear {
             // Remove observer
@@ -930,12 +940,25 @@ struct HomeView: View {
                     NotificationCenter.default.post(name: .dismissCustomSettings, object: nil)
                 }
         )
+        .onChange(of: hasAccessibilityPermission) { oldValue, newValue in
+            if newValue {
+                // Animate the blur out
+                withAnimation(.easeOut(duration: 0.3)) {
+                    hasAccessibilityPermission = true
+                }
+            }
+        }
+    }
+    
+    private func checkAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+        hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options as CFDictionary)
     }
 }
 
 #Preview {
     HomeView(
-        timeInterval: 1200,
+        timeInterval: .constant(1200),
         timerState: TimerState(),
         onTimeIntervalChange: { _ in }
     )

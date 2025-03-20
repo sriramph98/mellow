@@ -5,13 +5,16 @@ import IOKit.pwr_mgt
 public struct VisualEffectView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
     let blendingMode: NSVisualEffectView.BlendingMode
+    let alpha: CGFloat
     
     init(
         material: NSVisualEffectView.Material,
-        blendingMode: NSVisualEffectView.BlendingMode
+        blendingMode: NSVisualEffectView.BlendingMode,
+        alpha: CGFloat = 1.0
     ) {
         self.material = material
         self.blendingMode = blendingMode
+        self.alpha = alpha
     }
     
     public func makeNSView(context: Context) -> NSVisualEffectView {
@@ -26,12 +29,20 @@ public struct VisualEffectView: NSViewRepresentable {
             visualEffectView.appearance = darkAppearance
         }
         
+        // Add semi-transparent black background
+        if let layer = visualEffectView.layer {
+            layer.backgroundColor = NSColor.black.withAlphaComponent(alpha).cgColor
+        }
+        
         return visualEffectView
     }
     
     public func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
         visualEffectView.material = material
         visualEffectView.blendingMode = blendingMode
+        if let layer = visualEffectView.layer {
+            layer.backgroundColor = NSColor.black.withAlphaComponent(alpha).cgColor
+        }
     }
 }
 
@@ -333,195 +344,107 @@ struct BlurView: View {
     
     var body: some View {
         ZStack {
-            if testMode {
-                // Simple widget-style view for test mode
-                ZStack {
-                    VStack(spacing: 16) {
-                        VStack(spacing: 8) {
-                            Text("Break starts in")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+            // Base blur layer
+            VisualEffectView(
+                material: .fullScreenUI,
+                blendingMode: .behindWindow,
+                alpha: 0.5
+            )
+            
+            // Additional blur for depth
+            VisualEffectView(
+                material: .hudWindow,
+                blendingMode: .withinWindow,
+                alpha: 0.3
+            )
+            
+            if showContent {
+                VStack(spacing: 32) {
+                    // Current time - always visible
+                    Text(formattedCurrentTime)
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.top, 64)
+                    
+                    Spacer()
+                    
+                    // Conditional content based on skip confirmation
+                    Group {
+                        if showingSkipConfirmation {
+                            // Skip confirmation content
+                            Text("🤔")
+                                .font(.system(size: 64))
+                                .padding(.bottom, -16)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
                             
-                            Text("\(Int(timeRemaining))s")
-                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                            Text("Skip this break?")
+                                .font(.system(size: 48, weight: .heavy, design: .rounded))
                                 .foregroundColor(.white)
-                        }
-                        
-                        HStack(spacing: 12) {
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    isAnimatingOut = true
-                                    isAppearing = false
-                                }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "forward.fill")
-                                        .font(.system(size: 15, weight: .medium))
-                                    Text("Skip")
-                                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 8)
-                            }
-                            .buttonStyle(PillButtonStyle(
-                                customBackground: Color.white.opacity(0.2)
-                            ))
+                                .multilineTextAlignment(.center)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
                             
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    isAnimatingOut = true
-                                    isAppearing = false
-                                }
-                            }) {
-                                Text("Take Break Now")
-                                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 8)
-                            }
-                            .buttonStyle(PillButtonStyle(
-                                customBackground: Color.white.opacity(0.2)
-                            ))
+                            Text("Your eyes deserve this moment of rest")
+                                .font(.system(size: 17, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                        } else {
+                            // Original content
+                            Text(content.emoji)
+                                .font(.system(size: 64))
+                                .padding(.bottom, -16)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            Text(content.title)
+                                .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(8)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            Text(content.description)
+                                .font(.system(size: 17, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(8)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
                         }
                     }
-                    .padding(24)
-                }
-                .background(
-                    VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                // System wallpaper with improved animation
-                if let wallpaperImage = wallpaperImage {
-                    Image(nsImage: wallpaperImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .transition(.opacity)
-                }
-                
-                // Dark background overlay with smoother transition
-                Color.black
-                    .opacity(0.8)
-                    .transition(.opacity)
-                
-                // Subtle blur with improved animation
-                VisualEffectView(
-                    material: .hudWindow,
-                    blendingMode: .withinWindow
-                )
-                .transition(.opacity)
-                
-                // Add the key event handler
-                KeyEventHandlingView(onEscape: handleEscape)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .allowsHitTesting(true)
-                
-                if showContent {
-                    VStack(spacing: 32) {
-                        // Current time - always visible
-                        Text(formattedCurrentTime)
-                            .font(.system(size: 17, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.top, 64)
-                        
-                        Spacer()
-                        
-                        // Conditional content based on skip confirmation
-                        Group {
-                            if showingSkipConfirmation {
-                                // Skip confirmation content
-                                Text("🤔")
-                                    .font(.system(size: 64))
-                                    .padding(.bottom, -16)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                                
-                                Text("Skip this break?")
-                                    .font(.system(size: 48, weight: .heavy, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .multilineTextAlignment(.center)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                                
-                                Text("Your eyes deserve this moment of rest")
-                                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .multilineTextAlignment(.center)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                            } else {
-                                // Original content
-                                Text(content.emoji)
-                                    .font(.system(size: 64))
-                                    .padding(.bottom, -16)
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
-                                
-                                Text(content.title)
-                                    .font(.system(size: 48, weight: .heavy, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .multilineTextAlignment(.center)
-                                    .lineSpacing(8)
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
-                                
-                                Text(content.description)
-                                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .multilineTextAlignment(.center)
-                                    .lineSpacing(8)
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
-                            }
-                        }
-                        
-                        // Pomodoro circles - always visible if applicable
-                        if technique == "Pomodoro Technique" {
-                            pomodoroCircles
-                        }
-                        
-                        // Timer - always visible
-                        Text(formattedTime)
-                            .font(.system(size: 64, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .monospacedDigit()
-                        
-                        Spacer()
-                        
-                        // Bottom buttons with transitions
-                        Group {
-                            if showingSkipConfirmation {
-                                // Skip confirmation buttons
-                                HStack(spacing: 16) {
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                                            showingSkipConfirmation = false
-                                        }
-                                    }) {
-                                        Text("Continue Break")
-                                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 24)
-                                            .padding(.vertical, 12)
-                                            .background(Capsule().fill(.white.opacity(0.2)))
+                    
+                    // Pomodoro circles - always visible if applicable
+                    if technique == "Pomodoro Technique" {
+                        pomodoroCircles
+                    }
+                    
+                    // Timer - always visible
+                    Text(formattedTime)
+                        .font(.system(size: 64, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
+                        .monospacedDigit()
+                    
+                    Spacer()
+                    
+                    // Bottom buttons with transitions
+                    Group {
+                        if showingSkipConfirmation {
+                            // Skip confirmation buttons
+                            HStack(spacing: 16) {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                        showingSkipConfirmation = false
                                     }
-                                    .buttonStyle(.plain)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                                    
-                                    Button(action: confirmSkip) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "forward")
-                                                .font(.system(size: 12, weight: .medium))
-                                            Text("Skip")
-                                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                                .foregroundColor(.white)
-                                        }
+                                }) {
+                                    Text("Continue Break")
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
                                         .padding(.horizontal, 24)
                                         .padding(.vertical, 12)
                                         .background(Capsule().fill(.white.opacity(0.2)))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
                                 }
-                            } else {
-                                // Original skip button and ESC text
-                                Button(action: { handleSkip(fromButton: true) }) {
+                                .buttonStyle(.plain)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                                
+                                Button(action: confirmSkip) {
                                     HStack(spacing: 4) {
                                         Image(systemName: "forward")
                                             .font(.system(size: 12, weight: .medium))
@@ -534,31 +457,48 @@ struct BlurView: View {
                                     .background(Capsule().fill(.white.opacity(0.2)))
                                 }
                                 .buttonStyle(.plain)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                                
-                                if escapeCount > 0 && escapeCount < 3 {
-                                    Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
-                                        .font(.system(size: 13, weight: .regular, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.6))
-                                        .padding(.top, 8)
-                                } else {
-                                    Text(" Press ⎋ esc 3 times to skip")
-                                        .font(.system(size: 13, weight: .regular, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.4))
-                                        .padding(.top, 8)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            }
+                        } else {
+                            // Original skip button and ESC text
+                            Button(action: { handleSkip(fromButton: true) }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "forward")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text("Skip")
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
                                 }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Capsule().fill(.white.opacity(0.2)))
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            
+                            if escapeCount > 0 && escapeCount < 3 {
+                                Text("Press ⎋ esc \(3 - escapeCount) more time\(3 - escapeCount == 1 ? "" : "s") to skip")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .padding(.top, 8)
+                            } else {
+                                Text(" Press ⎋ esc 3 times to skip")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.4))
+                                    .padding(.top, 8)
                             }
                         }
-                        
-                        Spacer().frame(height: 32)
                     }
-                    .padding(.horizontal, 32)
-                    .opacity(isAppearing ? 1 : 0)
-                    .blur(radius: isAppearing ? 0 : 10)
-                    .scaleEffect(isAppearing ? 1 : 0.95)
+                    
+                    Spacer().frame(height: 32)
                 }
+                .padding(.horizontal, 32)
+                .opacity(isAppearing ? 1 : 0)
+                .blur(radius: isAppearing ? 0 : 10)
+                .scaleEffect(isAppearing ? 1 : 0.95)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onReceive(timer) { _ in
             if testMode {
                 if timeRemaining > 0 {
