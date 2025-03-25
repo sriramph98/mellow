@@ -182,15 +182,24 @@ struct PresetCard: View {
                             ZStack {
                                 // Circle background that fades out when running
                                 Circle()
-                                    .fill(Color.black.opacity(0.1))
+                                    .fill(
+                                        LinearGradient(
+                                            stops: [
+                                                Gradient.Stop(color: Color(red: 0, green: 0.59, blue: 1), location: 0.00),
+                                                Gradient.Stop(color: Color(red: 0, green: 0.38, blue: 0.64), location: 1.00),
+                                            ],
+                                            startPoint: UnitPoint(x: 0.5, y: 0),
+                                            endPoint: UnitPoint(x: 0.5, y: 1)
+                                        )
+                                    )
                                     .frame(width: 144, height: 144)
-                                    .opacity(isRunning ? 0 : 1) // Fade out circle when running
+                                    .opacity(isRunning ? 1 : 1) // Keep circle visible when running
                                     .scaleEffect(isRunning ? 0.7 : 1) // Scale down circle when running
                                 
                                 Image(systemName: sfSymbol)
                                     .font(.system(size: 60))
                                     .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(isRunning ? .black : .white)
+                                    .foregroundStyle(isRunning ? .white : .white) // Keep icon white in both states
                                     .opacity(0.6)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
