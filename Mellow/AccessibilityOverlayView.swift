@@ -3,12 +3,8 @@ import ApplicationServices
 
 struct AccessibilityBlurView: View {
     var body: some View {
-        VisualEffectView(
-            material: .hudWindow,
-            blendingMode: .withinWindow,
-            alpha: 0.5
-        )
-        .ignoresSafeArea()
+        WindowBlurView(style: .primary)
+            .ignoresSafeArea()
     }
 }
 

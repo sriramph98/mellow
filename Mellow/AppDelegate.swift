@@ -1,6 +1,7 @@
 import Cocoa
 import SwiftUI
 import ApplicationServices
+import IOKit.pwr_mgt
 
 enum MellowError: Error {
     case invalidTechnique
@@ -19,16 +20,6 @@ enum MellowError: Error {
     }
 }
 
-class KeyableWindow: NSWindow {
-    override var canBecomeKey: Bool {
-        return true
-    }
-    
-    override var canBecomeMain: Bool {
-        return true
-    }
-}
-
 class TimerState: ObservableObject {
     @Published var timeString: String = ""
     @Published var isPaused: Bool = false
@@ -36,23 +27,17 @@ class TimerState: ObservableObject {
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, ObservableObject {
     var statusItem: NSStatusItem?
-    var blurWindow: NSWindow?
-    var homeWindow: NSWindow?
-    var timer: Timer?
+    var homeWindow: HomeWindowController?
     var settingsWindow: NSWindow?
     var customRuleWindow: NSWindow?
+    var timer: Timer?
     var settingsPopover: NSPopover?
     var settingsViewController: NSViewController?
-    @objc dynamic var timeInterval: TimeInterval = UserDefaults.standard.double(forKey: "breakInterval") {
-        didSet {
-            UserDefaults.standard.set(timeInterval, forKey: "breakInterval")
-            updateMenuBarTitle()
-        }
-    }
+    @objc dynamic var timeInterval: TimeInterval = 1200 // Default to 20 minutes
     var nextBreakTime: Date?
     private var currentTechnique: String?
-    private var shortBreakDuration: TimeInterval = 300  // 5 minutes
-    private var longBreakDuration: TimeInterval = 1800  // 30 minutes
+    private var shortBreakDuration: TimeInterval = 20 // Default 20 seconds
+    private var longBreakDuration: TimeInterval = 300 // Default 5 minutes
     private var pomodoroCount: Int = 0
     private var customBreakDuration: TimeInterval {
         TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
@@ -62,10 +47,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     private var lastUsedBreakDuration: TimeInterval?
     private let timerState = TimerState()
     @Published private var isAnimatingOut = false
-    private var blurWindows: [NSWindow] = []  // Add array to track all blur windows
     @AppStorage("customInterval") var customInterval: TimeInterval = 1200 // Default 20 minutes
     @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
-    private var pausedTimeRemaining: TimeInterval?
+    var pausedTimeRemaining: TimeInterval?
     var overlayDismissed = false
     @Published var homeWindowInteractionDisabled = false
     private var assertionID: IOPMAssertionID = 0
@@ -128,6 +112,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             self,
             selector: #selector(handleScreenUnlock),
             name: NSNotification.Name("com.apple.screensaver.didstop"),
+            object: nil
+        )
+        
+        // Add observer for break skip notification
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBreakSkip),
+            name: NSNotification.Name("MellowBreakSkip"),
             object: nil
         )
     }
@@ -198,41 +190,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
         )
         
-        homeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 100),
-            styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        
-        // Configure window dragging behavior
-        configureWindowDragging(for: homeWindow!)
-        
-        // Add beta tag to title
-        let betaTag = NSTextField(labelWithString: "BETA")
-        betaTag.font = .systemFont(ofSize: 10, weight: .medium)
-        betaTag.textColor = .white
-        betaTag.backgroundColor = NSColor(white: 1.0, alpha: 0.2)
-        betaTag.isBezeled = false
-        betaTag.isEditable = false
-        betaTag.alignment = .center
-        betaTag.frame = NSRect(x: homeWindow!.frame.width - 60, y: homeWindow!.frame.height - 28, width: 40, height: 18)
-        betaTag.layer?.cornerRadius = 4
-        betaTag.layer?.masksToBounds = true
-        
-        if let titlebarView = homeWindow?.standardWindowButton(.closeButton)?.superview?.superview {
-            titlebarView.addSubview(betaTag)
-        }
+        homeWindow = HomeWindowController(rootView: homeView)
+        homeWindow?.window?.title = "Mellow"  // Keep title for Mission Control
         
         // Configure window for appearance modes
-        homeWindow?.appearance = NSAppearance(named: .darkAqua)
-        homeWindow?.isMovableByWindowBackground = false
-        homeWindow?.titlebarAppearsTransparent = true
-        homeWindow?.titleVisibility = .hidden
-        homeWindow?.backgroundColor = .clear
-        homeWindow?.isOpaque = false
-        homeWindow?.hasShadow = true
-        homeWindow?.title = "Mellow"  // Keep title for Mission Control
+        homeWindow?.window?.appearance = NSAppearance(named: .darkAqua)
+        homeWindow?.window?.isMovableByWindowBackground = false
+        homeWindow?.window?.titlebarAppearsTransparent = true
+        homeWindow?.window?.titleVisibility = .hidden
+        homeWindow?.window?.backgroundColor = .clear
+        homeWindow?.window?.isOpaque = false
+        homeWindow?.window?.hasShadow = true
         
         // Create container view with size fitting
         let containerView = NSView(frame: .zero)
@@ -274,11 +242,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         
         containerView.addSubview(hostingView)
         
-        homeWindow?.contentView = containerView
-        homeWindow?.setContentSize(hostingView.fittingSize)
-        homeWindow?.center()
-        homeWindow?.isReleasedWhenClosed = false
-        homeWindow?.delegate = self
+        homeWindow?.window?.contentView = containerView
+        homeWindow?.window?.setContentSize(hostingView.fittingSize)
+        homeWindow?.window?.center()
+        homeWindow?.window?.isReleasedWhenClosed = false
+        homeWindow?.window?.delegate = self
     }
     
     private func setupMenuBar() {
@@ -457,7 +425,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         }
         
         // Only set activation policy if window isn't visible
-        if homeWindow?.isVisible != true {
+        if homeWindow?.window?.isVisible != true {
             NSApp.setActivationPolicy(.regular)
         }
         
@@ -466,7 +434,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         }
         
         // Ensure window is visible and app is active
-        if let window = homeWindow {
+        if let window = homeWindow?.window {
             if window.isVisible {
                 window.orderFront(nil)
             } else {
@@ -514,134 +482,152 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func showBlurScreen(forTechnique technique: String? = nil) {
-        do {
-            // Check if overlay is enabled
-            guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             
-            // No longer need to guard blurWindow since we clean up beforehand
-            isAnimatingOut = false
+            // Play the break sound
+            try? self.playBreakSound()
             
-            // Prevent display sleep before showing windows
-            preventDisplaySleep()
+            // Prevent screen sleep during break
+            self.preventDisplaySleep()
             
-            // Create blur windows for each screen
-            for screen in NSScreen.screens {
-                let window = try createBlurWindow(frame: screen.frame)
-                
-                // Check if this is the internal display
-                let isInternalDisplay = isInternalDisplay(screen)
-                
-                let blurView = BlurView(
-                    technique: technique ?? currentTechnique ?? "Custom",
-                    screen: screen,
-                    pomodoroCount: pomodoroCount,
-                    isAnimatingOut: .init(
-                        get: { self.isAnimatingOut },
-                        set: { [weak self] newValue in 
-                            self?.isAnimatingOut = newValue
-                            if newValue {
-                                // Clear the window references after animation
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                                    self?.blurWindows.forEach { $0.orderOut(nil) }
-                                    self?.blurWindows.removeAll()
-                                    
-                                    // Release screen sleep prevention
-                                    self?.allowDisplaySleep()
-                                    
-                                    // Restart timer after break
-                                    self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
-                                    self?.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
-                                        self?.updateTimer()
-                                    }
-                                    if let timer = self?.timer {
-                                        RunLoop.main.add(timer, forMode: .common)
-                                    }
-                                }
-                            }
-                        }
-                    ),
-                    showContent: isInternalDisplay  // Show content only on internal display
-                )
-                window.contentView = NSHostingView(rootView: blurView)
-                window.makeKeyAndOrderFront(nil)
-                
-                blurWindows.append(window)
-                
-                if blurWindow == nil {
-                    blurWindow = window
-                }
+            // Determine break duration based on technique
+            let techniqueName = technique ?? self.currentTechnique ?? "20-20-20 Rule"
+            let breakDuration: TimeInterval
+            
+            do {
+                breakDuration = try self.getDismissalDuration(for: techniqueName)
+            } catch {
+                self.handleError(error)
+                return
             }
             
-            // Handle sound and notifications
-            if UserDefaults.standard.bool(forKey: "playSound") {
-                try playBreakSound()
-            }
+            // Create and show full-screen overlay windows on all screens
+            self.showFullscreenOverlays(technique: techniqueName, duration: breakDuration)
             
-        } catch {
-            cleanupBlurWindows()
-            allowDisplaySleep()
-            handleError(error)
+            // After the break duration, handle break completion
+            DispatchQueue.main.asyncAfter(deadline: .now() + breakDuration) { [weak self] in
+                self?.handleBreakComplete()
+            }
         }
     }
     
-    // Helper function to determine if a screen is internal
-    private func isInternalDisplay(_ screen: NSScreen) -> Bool {
-        // Method 1: Check using CGMainDisplayID
-        let mainDisplayCheck = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+    private var overlayWindows: [NSWindow] = []
+    
+    private func showFullscreenOverlays(technique: String, duration: TimeInterval) {
+        // Close any existing overlay windows
+        for window in overlayWindows {
+            window.orderOut(nil)
+        }
+        overlayWindows.removeAll()
         
-        // Method 2: Check if it's the first screen
-        let isFirstScreen = NSScreen.screens.first == screen
+        // Create event monitor to block all interactions outside the overlay windows
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
+            // Prevent any interactions with other applications during break
+            guard let self = self, !self.overlayWindows.isEmpty else { return }
+            
+            // If we're in a break, suppress the event
+            NSApp.sendEvent(NSEvent.mouseEvent(
+                with: .mouseMoved,
+                location: NSPoint(x: 0, y: 0),
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 0,
+                pressure: 0
+            )!)
+        }
         
-        // Method 3: Check if it's the main screen
-        let isMainScreen = screen == NSScreen.main
+        // Create an overlay window for each screen
+        for screen in NSScreen.screens {
+            // Create a window that covers the entire screen including the menu bar
+            let overlayWindow = BreakOverlayWindow(
+                contentRect: screen.frame,
+                screen: screen,
+                technique: technique,
+                endTime: Date().addingTimeInterval(duration),
+                onSkip: { [weak self] in
+                    self?.skipBreak()
+                }
+            )
+            
+            // Store the window reference
+            overlayWindows.append(overlayWindow)
+            
+            // Show the window
+            overlayWindow.makeKeyAndOrderFront(nil)
+            overlayWindow.orderFrontRegardless()
+        }
         
-        // Return true if any of the checks pass
-        return mainDisplayCheck || isFirstScreen || isMainScreen
+        // Ensure all windows are the top-most windows by using a timer
+        let refreshTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            guard let self = self, !self.overlayWindows.isEmpty else {
+                timer.invalidate()
+                return
+            }
+            
+            // Bring all overlay windows to front
+            for window in self.overlayWindows {
+                window.orderFrontRegardless()
+            }
+        }
+        
+        // Keep the timer alive by adding it to the appropriate run loops
+        RunLoop.main.add(refreshTimer, forMode: .common)
+        
+        // We don't need to store break information in UserDefaults anymore since
+        // we're not showing it in the app window, but using fullscreen overlays
+        
+        // Post notification to update any interested components
+        NotificationCenter.default.post(
+            name: NSNotification.Name("MellowBreakStarted"),
+            object: nil
+        )
+    }
+    
+    private func handleBreakComplete() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Close all overlay windows
+            for window in self.overlayWindows {
+                window.orderOut(nil)
+            }
+            self.overlayWindows.removeAll()
+            
+            // Stop the break sound
+            self.breakSound?.stop()
+            
+            // Allow screen sleep
+            self.allowDisplaySleep()
+            
+            // Post notification that break ended
+            NotificationCenter.default.post(
+                name: NSNotification.Name("MellowBreakEnded"),
+                object: nil
+            )
+            
+            // Start the next timer
+            do {
+                self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
+                try self.startTimer()
+            } catch {
+                self.handleError(error)
+            }
+        }
     }
     
     private func createBlurWindow(frame: NSRect) throws -> NSWindow {
-        let window = KeyableWindow(
-            contentRect: frame,
-            styleMask: [.borderless, .fullSizeContentView],
+        // This method is no longer needed, but keeping a simple implementation
+        // to prevent potential crashes
+        return NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+            styleMask: [.borderless],
             backing: .buffered,
-            defer: false
+            defer: true
         )
-        
-        window.level = .statusBar
-        window.backgroundColor = .clear
-        window.isOpaque = false
-        window.hasShadow = false
-        window.acceptsMouseMovedEvents = true
-        window.ignoresMouseEvents = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        
-        // Create a visual effect view for the window background
-        let visualEffect = NSVisualEffectView(frame: window.contentView?.bounds ?? .zero)
-        visualEffect.material = .fullScreenUI
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.wantsLayer = true
-        
-        // Force dark appearance for consistent look
-        if let darkAppearance = NSAppearance(named: .darkAqua) {
-            visualEffect.appearance = darkAppearance
-        }
-        
-        // Add semi-transparent black background
-        if let layer = visualEffect.layer {
-            layer.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
-        }
-        
-        // Make visual effect view resize with window
-        visualEffect.autoresizingMask = [.width, .height]
-        
-        // Set as window background
-        window.contentView = visualEffect
-        
-        // Disable window dragging
-        configureWindowDragging(for: window, allowDragging: false)
-        
-        return window
     }
     
     private func playBreakSound() throws {
@@ -657,13 +643,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     private func getDismissalDuration(for technique: String) throws -> TimeInterval {
         switch technique {
         case "20-20-20 Rule":
-            return 20
+            return 20  // 20 seconds break
         case "Pomodoro Technique":
-            // After 4 pomodoros, take a long break (30 minutes)
             if pomodoroCount == 4 {
-                return longBreakDuration  // 30 minutes
+                return 1800  // 30 minutes for long break after 4 work sessions
             }
-            return shortBreakDuration  // 5 minutes
+            return 300  // 5 minutes for short breaks
         case "Custom":
             let duration = TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
             guard duration > 0 else { throw MellowError.customRuleNotConfigured }
@@ -684,58 +669,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         }
     }
     
-    func dismissBlurScreen() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+    func dismissAllWindows() {
+        // Get all notification windows
+        let notificationWindows = NSApplication.shared.windows
+            .filter { $0 != self.homeWindow?.window }
             
-            // Get all blur windows
-            let blurWindows = NSApplication.shared.windows
-                .filter { $0 is KeyableWindow && $0 != self.homeWindow }
-                as? [KeyableWindow] ?? []
-            
-            // First, animate all views simultaneously
-            for window in blurWindows {
-                if let hostingView = window.contentView as? NSHostingView<BlurView> {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        hostingView.rootView.isAppearing = false
-                    }
-                }
+        // Close any notification windows
+        for window in notificationWindows {
+            if window.title == "Mellow" && window.level == .floating {
+                window.orderOut(nil)
             }
-            
-            // Then dismiss all windows after animation completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                for window in blurWindows {
-                    window.orderOut(nil)
-                }
-                
-                self.blurWindow = nil
+        }
+        
+        // Close any settings windows
+        if let settingsWindow = settingsWindow {
+            settingsWindow.orderOut(nil)
+        }
+        
+        // Dismiss any popovers
+        if settingsPopover?.isShown == true {
+            settingsPopover?.close()
+        }
+        
                 self.breakSound?.stop()
                 
                 // Release screen sleep prevention
-                self.allowDisplaySleep()
-                
-                // Handle Pomodoro count and start next timer
-                if self.currentTechnique == "Pomodoro Technique" {
-                    if self.pomodoroCount == 4 {
-                        // After long break, reset to 1
-                        self.pomodoroCount = 1
-                        print("🍅 Long break completed - Starting new cycle at Count: 1/4")
-                    } else {
-                        // After short break, increment count
-                        self.pomodoroCount += 1
-                        print("🍅 Break completed - Count: \(self.pomodoroCount)/4")
-                    }
-                }
-                
-                // Start the next timer
-                do {
-                    self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                    try self.startTimer()
-                } catch {
-                    self.handleError(error)
-                }
-            }
-        }
+        allowDisplaySleep()
     }
     
     @objc func showSettings() {
@@ -764,7 +723,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         if let statusButton = statusItem?.button {
             // Show from menu bar status item
             popover.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
-        } else if let homeWindow = homeWindow, homeWindow.isVisible {
+        } else if let homeWindow = homeWindow?.window, homeWindow.isVisible {
             // Show from settings button in home window
             popover.showFromTaggedView(tag: 1001, in: homeWindow, preferredEdge: .maxY)
         } else {
@@ -777,7 +736,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             
             // Delay showing the popover until the window is visible
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                guard let self = self, let homeWindow = self.homeWindow else { return }
+                guard let self = self, let homeWindow = self.homeWindow?.window else { return }
                 popover.showFromTaggedView(tag: 1001, in: homeWindow, preferredEdge: .maxY)
             }
         }
@@ -821,7 +780,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         self.settingsViewController = hostingController
         
         // Determine where to show the popover
-        if let homeWindow = homeWindow, homeWindow.isVisible {
+        if let homeWindow = homeWindow?.window, homeWindow.isVisible {
             if let customButton = homeWindow.contentView?.findViewWithTag(1002) {
                 // Show from custom rule button if available
                 popover.show(relativeTo: customButton.bounds, of: customButton, preferredEdge: .maxY)
@@ -840,7 +799,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             
             // Delay showing the popover until the window is visible
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                guard let self = self, let homeWindow = self.homeWindow else { return }
+                guard let self = self, let homeWindow = self.homeWindow?.window else { return }
                 let centerRect = NSRect(x: homeWindow.frame.width/2, y: homeWindow.frame.height/2, width: 0, height: 0)
                 popover.show(relativeTo: centerRect, of: homeWindow.contentView!, preferredEdge: .maxY)
             }
@@ -872,7 +831,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                     pomodoroCount = 1
                     print("🍅 Starting Pomodoro - Count: 1/4")
                 } else if isReset {
-                    print("🍅 Timer reset - Continuing at Count: \(pomodoroCount)/4")
+                    // When resetting, increment the count but cap at 4
+                    pomodoroCount = min(pomodoroCount + 1, 4)
+                    print("🍅 Timer reset - Count: \(pomodoroCount)/4")
                 }
             case "Custom":
                 // Ensure we have a valid custom interval
@@ -914,14 +875,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func stopTimer() {
-        // Dismiss any existing overlay first
-        if let window = blurWindow {
-            window.orderOut(nil)
-            blurWindow = nil
-            blurWindows.forEach { $0.orderOut(nil) }
-            blurWindows.removeAll()
-        }
-        
         timer?.invalidate()
         timer = nil
         timerState.isPaused = false
@@ -942,13 +895,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         // Reset timer state
         nextBreakTime = nil
         breakSound?.stop()
-        
-        // Ensure screen saver is allowed when timer is stopped
-        if let blurWindow = blurWindow {
-            if let hostingView = blurWindow.contentView as? NSHostingView<BlurView> {
-                hostingView.rootView.screenSaverManager.allowScreenSaver()
-            }
-        }
         
         // Release screen sleep prevention
         allowDisplaySleep()
@@ -981,8 +927,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender == homeWindow {
-            homeWindow?.orderOut(nil)
+        if sender == homeWindow?.window {
+            homeWindow?.window?.orderOut(nil)
             NSApp.setActivationPolicy(.accessory)
             return false
         }
@@ -1003,46 +949,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Wait for animation to complete
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                // Close all tracked blur windows
-                for window in self.blurWindows {
-                    window.orderOut(nil)
-                }
+            // Close all overlay windows
+            for window in self.overlayWindows {
+                window.orderOut(nil)
+            }
+            self.overlayWindows.removeAll()
                 
-                self.blurWindows.removeAll()
-                self.blurWindow = nil
-                self.breakSound?.stop()
+            self.breakSound?.stop()
                 
-                // Release screen sleep prevention
-                self.allowDisplaySleep()
+            // Release screen sleep prevention
+            self.allowDisplaySleep()
                 
-                // Handle Pomodoro count when skipping break
-                if self.currentTechnique == "Pomodoro Technique" {
+            // Reset timer state
+            self.timer?.invalidate()
+            self.timer = nil
+            self.timerState.isPaused = false
+            self.pausedTimeRemaining = nil
+            
+            // Start a new timer with the current technique
+            if let technique = self.currentTechnique {
+                // For Pomodoro, handle count based on break type
+                if technique == "Pomodoro Technique" {
                     if self.pomodoroCount == 4 {
                         // After long break, reset to 1
                         self.pomodoroCount = 1
                         print("🍅 Long break skipped - Starting new cycle at Count: 1/4")
                     } else {
-                        // After short break, increment count
-                        self.pomodoroCount += 1
+                        // After short break, increment count but cap at 4
+                        self.pomodoroCount = min(self.pomodoroCount + 1, 4)
                         print("🍅 Break skipped - Count: \(self.pomodoroCount)/4")
                     }
                 }
-                
-                // Reset and start the timer only if it was running before
-                if self.timer != nil {
-                    do {
-                        self.nextBreakTime = Date().addingTimeInterval(self.timeInterval)
-                        try self.startTimer()
-                    } catch {
-                        self.handleError(error)
-                    }
-                } else {
-                    // Just update the display without starting timer
-                    self.updateMenuBarTitle()
-                }
+                // Pass false to isReset to prevent double incrementing
+                self.startSelectedTechnique(technique: technique, isReset: false)
             }
+            
+            // Update menu bar title
+            self.updateMenuBarTitle()
         }
     }
     
@@ -1080,7 +1023,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 queue: .main
             ) { [weak self] _ in
                 // Only revert to accessory mode if home window is not visible
-                if self?.homeWindow?.isVisible != true {
+                if self?.homeWindow?.window?.isVisible != true {
                     NSApp.setActivationPolicy(.accessory)
                     // Restore status item and update menu bar
                     self?.statusItem = currentStatusItem
@@ -1089,25 +1032,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 // Remove the observer
                 NotificationCenter.default.removeObserver(self as Any)
             }
-        }
-    }
-    
-    func handleBreakComplete() {
-        // Play sound if enabled
-        if UserDefaults.standard.bool(forKey: "playSound") {
-            do {
-                try playBreakSound()
-            } catch {
-                handleError(error)
-            }
-        }
-        
-        // Start the next break interval timer
-        do {
-            nextBreakTime = Date().addingTimeInterval(timeInterval)
-            try startTimer()
-        } catch {
-            handleError(error)
         }
     }
     
@@ -1189,11 +1113,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 let minutes = Int(timeRemaining) / 60
                 let seconds = Int(timeRemaining) % 60
                 
-                // Only show overlay when timer is running and not paused
-                if timeRemaining <= 10 && self.blurWindow == nil && !self.timerState.isPaused && self.timer != nil {
-                    self.showTestBlurScreen(timeRemaining: timeRemaining)
-                }
-                
                 // Update timer state and menu bar
                 let newTimeString: String
                 if minutes == 0 {
@@ -1207,24 +1126,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                     button.title = " \(newTimeString)"
                 }
             } else {
-                // Check if timer has reached zero
-                if timeRemaining <= 0 {
-                    // Ensure timer is valid and not paused
-                    guard self.timer?.isValid == true && !self.timerState.isPaused else { return }
-                    
-                    // Store current technique and clean up timer state atomically
-                    let currentTech = self.currentTechnique
-                    self.cleanupTimerState()
-                    
-                    // Show blur screen with proper state management
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self else { return }
-                        // Force cleanup any existing blur windows
-                        self.cleanupBlurWindows()
-                        // Show new blur screen
-                        self.showBlurScreen(forTechnique: currentTech)
-                    }
-                }
+                // Timer has ended, show break screen
+                self.timer?.invalidate()
+                self.timer = nil
+                self.showBlurScreen(forTechnique: self.currentTechnique)
             }
         }
     }
@@ -1234,135 +1139,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         self.timer?.invalidate()
         self.timer = nil
         self.nextBreakTime = nil
-        self.isAnimatingOut = false
     }
     
     // New helper method for blur window cleanup
     private func cleanupBlurWindows() {
-        self.blurWindows.forEach { $0.orderOut(nil) }
-        self.blurWindows.removeAll()
-        self.blurWindow?.orderOut(nil)
-        self.blurWindow = nil
+        // Empty method as we've removed blur windows
     }
     
     func showTestBlurScreen(timeRemaining: TimeInterval = 10) {
-        do {
-            // Check if overlay is enabled
-            guard UserDefaults.standard.bool(forKey: "showOverlay") else { return }
-            
-            // Clean up any existing windows first
-            blurWindow?.orderOut(nil)
-            blurWindow = nil
-            blurWindows.forEach { $0.orderOut(nil) }
-            blurWindows.removeAll()
-            
-            // Reset animation state
-            isAnimatingOut = false
-            overlayDismissed = false
-            
-            // Prevent display sleep
-            preventDisplaySleep()
-            
-            // Try to find the internal display
-            var targetScreen: NSScreen? = nil
-            
-            // First try to find the internal display
-            for screen in NSScreen.screens {
-                if isInternalDisplay(screen) {
-                    targetScreen = screen
-                    break
-                }
-            }
-            
-            // If no internal display found, fall back to main screen
-            if targetScreen == nil {
-                targetScreen = NSScreen.main ?? NSScreen.screens.first
-            }
-            
-            // Create window if we have a valid screen
-            if let screen = targetScreen {
-                // Get menu bar height and add padding
-                let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 24
-                let topPadding: CGFloat = 16 // Space below menu bar
-                
-                // Create window with dynamic size
-                let window = try createBlurWindow(frame: .zero)
-                
-                // Configure window
-                window.level = .floating
-                window.isMovable = false
-                window.hasShadow = true
-                window.backgroundColor = .clear
-                window.title = "Mellow"  // Add title for Mission Control
-                
-                let overlayView = OverlayView(
-                    isAnimatingOut: .init(
-                        get: { self.isAnimatingOut },
-                        set: { [weak self] newValue in 
-                            self?.isAnimatingOut = newValue
-                            if newValue {
-                                // Clear the window references after animation
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                                    self?.blurWindows.forEach { $0.orderOut(nil) }
-                                    self?.blurWindows.removeAll()
-                                    
-                                    // Release screen sleep prevention
-                                    self?.allowDisplaySleep()
-                                    
-                                    // Restart timer after break
-                                    self?.nextBreakTime = Date().addingTimeInterval(self?.timeInterval ?? 1200)
-                                    self?.timer = Timer(fire: Date(), interval: 0.5, repeats: true) { [weak self] _ in
-                                        self?.updateTimer()
-                                    }
-                                    if let timer = self?.timer {
-                                        RunLoop.main.add(timer, forMode: .common)
-                                    }
-                                }
-                            }
-                        }
-                    ),
-                    initialTimeRemaining: timeRemaining,
-                    onComplete: { [weak self] in
-                        // Take a break immediately
-                        DispatchQueue.main.async { [weak self] in
-                            if let self = self {
-                                // Reset the timer first to prevent any race conditions
-                                self.timer?.invalidate()
-                                self.timer = nil
-                                self.nextBreakTime = nil
-                                
-                                // Show blur screen with a slight delay to ensure clean transition
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    self.showBlurScreen(forTechnique: self.currentTechnique)
-                                }
-                            }
-                        }
-                    }
-                )
-                    .frame(width: 420)  // Fixed width for overlay
-                
-                // Create hosting view and size window to fit content
-                let hostingView = NSHostingView(rootView: overlayView)
-                window.contentView = hostingView
-                hostingView.setFrameSize(hostingView.fittingSize)
-                window.setContentSize(hostingView.fittingSize)
-                
-                // Position window
-                let windowX = screen.frame.maxX - window.frame.width - 20
-                let windowY = screen.frame.maxY - window.frame.height - (menuBarHeight + topPadding)
-                window.setFrameOrigin(NSPoint(x: windowX, y: windowY))
-                
-                window.makeKeyAndOrderFront(nil)
-                
-                blurWindows.append(window)
-                blurWindow = window
-            }
-            
-        } catch {
-            // Release screen sleep prevention on error
-            allowDisplaySleep()
-            handleError(error)
-        }
+        // This method is now empty as we've removed the blur screen functionality
     }
     
     @objc private func handleScreenLock() {
@@ -1393,49 +1178,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         }
     }
     
+    func showOverlayWindow(on screen: NSScreen) {
+        // This method is no longer needed as we're removing the overlay feature
+        // Keeping the method but making it empty to avoid breaking any callers
+    }
+    
     func showBlurWindow() {
-        if blurWindow == nil {
-            blurWindow = NSWindow(
-                contentRect: NSScreen.main?.frame ?? .zero,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            blurWindow?.level = .floating
-            blurWindow?.backgroundColor = .clear
-            blurWindow?.isOpaque = false
-            blurWindow?.hasShadow = false
-            
-            // Disable window dragging
-            if let window = blurWindow {
-                configureWindowDragging(for: window, allowDragging: false)
-            }
-            
-            // Create BlurView with required parameters
-            let blurView = BlurView(
-                technique: currentTechnique ?? "Custom",
-                screen: NSScreen.main ?? NSScreen.screens[0],
-                pomodoroCount: pomodoroCount,
-                isAnimatingOut: .init(
-                    get: { self.isAnimatingOut },
-                    set: { [weak self] newValue in 
-                        self?.isAnimatingOut = newValue
-                    }
-                ),
-                showContent: true
-            )
-            blurWindow?.contentView = NSHostingView(rootView: blurView)
-        }
-        
-        blurWindow?.makeKeyAndOrderFront(nil)
-        
-        // Prevent screen sleep using IOKit
-        preventDisplaySleep()
+        // This method is no longer needed as we're removing the blur window feature
+        // Keeping the method but making it empty to avoid breaking any callers
     }
     
     func hideBlurWindow() {
-        blurWindow?.orderOut(nil)
-        allowDisplaySleep()
+        // This method is no longer needed as we're removing the blur window feature
+        // Keeping the method but making it empty to avoid breaking any callers
+    }
+    
+    func dismissMellowNotification() {
+        // Get all notification windows
+        let notificationWindows = NSApplication.shared.windows
+            .filter { $0 != self.homeWindow?.window }
+            
+        // Close any notification windows
+        for window in notificationWindows {
+            if window.title == "Mellow" && window.level == .floating {
+                window.orderOut(nil)
+            }
+        }
+    }
+    
+    @objc private func handleBreakSkip() {
+        // Skip the current break and start the next timer interval
+        skipBreak()
+    }
+    
+    // Add this method to get the current Pomodoro count
+    func getPomodoroCount() -> Int {
+        return pomodoroCount
     }
 }
 

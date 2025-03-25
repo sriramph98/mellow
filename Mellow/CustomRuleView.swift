@@ -248,16 +248,10 @@ struct CustomRuleView: View {
         .frame(width: 360)
         .background(
             ZStack {
-                VisualEffectView(material: .windowBackground, blendingMode: .behindWindow)
-                    .ignoresSafeArea(.all)
-                Color.white.opacity(0.4)
+                CustomBlurView(style: .primary)
+                    .opacity(isAppearing ? 1 : 0)
             }
-            .cornerRadius(12)
-            .allowsHitTesting(false)
         )
-        .opacity(isAppearing ? 1 : 0)
-        .scaleEffect(isAppearing ? 1 : 0.98)
-        .offset(y: isAppearing ? 0 : -10)
         .onAppear {
             withAnimation(
                 .spring(

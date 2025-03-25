@@ -1,6 +1,7 @@
 import SwiftUI
 
-struct PillButtonStyle: ButtonStyle {
+// Rename the style to have a more unique name
+struct MellowPillButtonStyle: ButtonStyle {
     @State private var isHovering = false
     var minWidth: CGFloat? = 135
     var customBackground: Color? = nil

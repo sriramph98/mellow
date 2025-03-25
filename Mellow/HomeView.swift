@@ -324,7 +324,7 @@ struct PresetCard: View {
             .frame(height: 30)
             .padding(.horizontal, 8)
         }
-        .buttonStyle(PillButtonStyle(
+        .buttonStyle(MellowPillButtonStyle(
             customBackground: Color(red: 1, green: 0, blue: 0).opacity(0.8)
         ))
         .transition(.asymmetric(
@@ -342,19 +342,13 @@ struct PresetCard: View {
     
     private var pauseButton: some View {
         Button(action: onPauseResume) {
-            HStack(spacing: 8) {
-                Image(systemName: timerState.isPaused ? "play.fill" : "pause.fill")
-                    .font(.system(size: 12, weight: .medium))
-                Text(timerState.isPaused ? "Resume" : "Pause")
-                    .font(Font.custom("SF Pro Rounded", size: 16).weight(.medium))
-            }
-            .foregroundColor(.white)
-            .frame(height: 30)
-            .padding(.horizontal, 8)
+            Image(systemName: timerState.isPaused ? "play.fill" : "pause.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 36, height: 30)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(PillButtonStyle(
-            customBackground: Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.8)
-        ))
+        .buttonStyle(MellowPillButtonStyle(minWidth: 44))
         .transition(.asymmetric(
             insertion: .modifier(
                 active: AmoebaTrasitionModifier(blur: 10, opacity: 0, scale: 0.85),
@@ -376,7 +370,7 @@ struct PresetCard: View {
                 .frame(width: 36, height: 30)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PillButtonStyle(minWidth: 44))
+        .buttonStyle(MellowPillButtonStyle(minWidth: 44))
         .transition(.asymmetric(
             insertion: .modifier(
                 active: AmoebaTrasitionModifier(blur: 12, opacity: 0, scale: 1.2),
@@ -404,7 +398,7 @@ struct PresetCard: View {
                 .frame(width: 36, height: 30)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(PillButtonStyle(minWidth: 44))
+        .buttonStyle(MellowPillButtonStyle(minWidth: 44))
     }
     
     // Function to update hover location
@@ -626,14 +620,15 @@ struct AmoebaTrasitionModifier: ViewModifier {
 struct HomeView: View {
     @Binding var timeInterval: TimeInterval
     @ObservedObject var timerState: TimerState
-    let onTimeIntervalChange: (TimeInterval) -> Void
+    var onTimeIntervalChange: (TimeInterval) -> Void
+    
     @State private var selectedPreset: String = "20-20-20 Rule"
     @State private var isRunning = false
     @State private var isFooterVisible = false
     @State private var isContentVisible = false
     @State private var isModalPresented = false
     @State private var isAnyCardFlipped = false
-    @State private var notificationObserver: NSObjectProtocol? = nil
+    @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var showSettings = false
     @Namespace private var animation
     @State private var hasAccessibilityPermission: Bool = false
@@ -911,17 +906,17 @@ struct HomeView: View {
             }
             
             // Register for card flip state change notifications
-            notificationObserver = NotificationCenter.default.addObserver(forName: .cardFlipStateChanged, object: nil, queue: .main) { notification in
+            notificationObservers.append(NotificationCenter.default.addObserver(forName: .cardFlipStateChanged, object: nil, queue: .main) { notification in
                 if let isFlipped = notification.userInfo?["isFlipped"] as? Bool {
                     isAnyCardFlipped = isFlipped
                 }
-            }
+            })
             
             checkAccessibilityPermission()
         }
         .onDisappear {
             // Remove observer
-            if let observer = notificationObserver {
+            for observer in notificationObservers {
                 NotificationCenter.default.removeObserver(observer)
             }
         }
