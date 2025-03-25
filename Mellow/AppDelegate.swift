@@ -540,6 +540,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             )!)
         }
         
+        // Get the internal display (usually the first screen)
+        let internalDisplay = NSScreen.screens.first
+        
         // Create an overlay window for each screen
         for screen in NSScreen.screens {
             // Create a window that covers the entire screen including the menu bar
@@ -552,6 +555,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                     self?.skipBreak()
                 }
             )
+            
+            // If this is not the internal display, make it a blur-only window
+            if screen != internalDisplay {
+                overlayWindow.isBlurOnly = true
+            }
             
             // Store the window reference
             overlayWindows.append(overlayWindow)
@@ -576,9 +584,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         
         // Keep the timer alive by adding it to the appropriate run loops
         RunLoop.main.add(refreshTimer, forMode: .common)
-        
-        // We don't need to store break information in UserDefaults anymore since
-        // we're not showing it in the app window, but using fullscreen overlays
         
         // Post notification to update any interested components
         NotificationCenter.default.post(
