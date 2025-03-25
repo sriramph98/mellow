@@ -65,9 +65,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         
-        // Check accessibility permission
-        checkAccessibilityPermission()
-        
         setupMinimalMainMenu()
         
         if UserDefaults.standard.double(forKey: "breakInterval") == 0 {
@@ -122,27 +119,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             name: NSNotification.Name("MellowBreakSkip"),
             object: nil
         )
-    }
-    
-    private func checkAccessibilityPermission() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let accessibilityEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
-        
-        if !accessibilityEnabled {
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Accessibility Permission Required"
-                alert.informativeText = "Mellow needs accessibility permission to show break reminders above other windows. Please grant permission in System Settings > Privacy & Security > Accessibility."
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Open System Settings")
-                alert.addButton(withTitle: "Later")
-                
-                let response = alert.runModal()
-                if response == .alertFirstButtonReturn {
-                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-                }
-            }
-        }
     }
     
     private func setupMinimalMainMenu() {

@@ -631,7 +631,6 @@ struct HomeView: View {
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var showSettings = false
     @Namespace private var animation
-    @State private var hasAccessibilityPermission: Bool = false
     
     init(
         timeInterval: Binding<TimeInterval>,
@@ -872,20 +871,13 @@ struct HomeView: View {
                 .transition(.scale(scale: 0.95).combined(with: .opacity))
                 .zIndex(100)
             }
-            
-            // Accessibility overlay
-            if !hasAccessibilityPermission {
-                AccessibilityOverlayView {
-                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-                }
-            }
         }
         .onAppear {
             // Animate content first, then footer
             withAnimation(
                 .spring(
-                    response: 0.6,         // Changed from 0.3 to 0.6
-                    dampingFraction: 0.8,  // Changed from 0.5 to 0.8
+                    response: 0.6,
+                    dampingFraction: 0.8,
                     blendDuration: 0
                 )
             ) {
@@ -896,8 +888,8 @@ struct HomeView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 withAnimation(
                     .spring(
-                        response: 0.6,     // Changed from 0.3 to 0.6
-                        dampingFraction: 0.8,  // Changed from 0.5 to 0.8
+                        response: 0.6,
+                        dampingFraction: 0.8,
                         blendDuration: 0
                     )
                 ) {
@@ -911,8 +903,6 @@ struct HomeView: View {
                     isAnyCardFlipped = isFlipped
                 }
             })
-            
-            checkAccessibilityPermission()
         }
         .onDisappear {
             // Remove observer
@@ -935,19 +925,6 @@ struct HomeView: View {
                     NotificationCenter.default.post(name: .dismissCustomSettings, object: nil)
                 }
         )
-        .onChange(of: hasAccessibilityPermission) { oldValue, newValue in
-            if newValue {
-                // Animate the blur out
-                withAnimation(.easeOut(duration: 0.3)) {
-                    hasAccessibilityPermission = true
-                }
-            }
-        }
-    }
-    
-    private func checkAccessibilityPermission() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-        hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options as CFDictionary)
     }
 }
 

@@ -6,7 +6,5 @@
 	<string></string>
 	<key>CFBundleSignature</key>
 	<string></string>
-	<key>NSAccessibilityUsageDescription</key>
-	<string>Mellow needs accessibility permission to show break reminders above other windows.</string>
 </dict>
 </plist>
