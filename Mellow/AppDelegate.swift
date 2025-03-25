@@ -631,6 +631,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     private func playBreakSound() throws {
+        // Check if sound is enabled in settings
+        let playSound = UserDefaults.standard.bool(forKey: "playSound")
+        guard playSound else { return }
+        
         if breakSound == nil {
             guard let sound = NSSound(named: "Glass") else {
                 throw MellowError.timerInitializationFailed
