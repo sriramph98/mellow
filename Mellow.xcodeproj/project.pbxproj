@@ -23,10 +23,25 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		808CE1532D935572007337F7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		8064A5BE2D2EC808002848B7 /* Mellow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mellow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8064A5CF2D2EC80B002848B7 /* MellowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MellowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8064A5D92D2EC80B002848B7 /* MellowUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MellowUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		808CE1412D935571007337F7 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		808CE1432D935571007337F7 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -91,6 +106,7 @@
 				8064A5C02D2EC808002848B7 /* Mellow */,
 				8064A5D22D2EC80B002848B7 /* MellowTests */,
 				8064A5DC2D2EC80B002848B7 /* MellowUITests */,
+				808CE1402D935571007337F7 /* Frameworks */,
 				8064A5BF2D2EC808002848B7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -105,6 +121,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		808CE1402D935571007337F7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				808CE1412D935571007337F7 /* WidgetKit.framework */,
+				808CE1432D935571007337F7 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -115,6 +140,7 @@
 				8064A5BA2D2EC808002848B7 /* Sources */,
 				8064A5BB2D2EC808002848B7 /* Frameworks */,
 				8064A5BC2D2EC808002848B7 /* Resources */,
+				808CE1532D935572007337F7 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -406,7 +432,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Mellow/Mellow.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;
@@ -440,7 +466,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Mellow/Mellow.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;

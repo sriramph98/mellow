@@ -193,14 +193,18 @@ struct PresetCard: View {
                                         )
                                     )
                                     .frame(width: 144, height: 144)
-                                    .opacity(isRunning ? 1 : 1) // Keep circle visible when running
-                                    .scaleEffect(isRunning ? 0.7 : 1) // Scale down circle when running
+                                    .opacity(isRunning ? 1 : 1)
+                                    .scaleEffect(isRunning ? 0.7 : 1)
+                                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
                                 
                                 Image(systemName: sfSymbol)
-                                    .font(.system(size: 60))
+                                    .font(.system(size: isRunning ? 40 : 60))
                                     .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(isRunning ? .white : .white) // Keep icon white in both states
+                                    .foregroundStyle(.white)
                                     .opacity(0.6)
+                                    .scaleEffect(isRunning ? 0.8 : 1)
+                                    .frame(width: 144, height: 144)
+                                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
                             .modifier(IconPathAnimationModifier(isRunning: isRunning, isSelected: isSelected))
@@ -258,10 +262,10 @@ struct PresetCard: View {
         .opacity(isDisabled ? 0.4 : 1.0)
         .blur(radius: isDisabled ? 1 : 0)
         .scaleEffect(isSelected ? 1.02 : 1.0)
-        .scaleEffect(isHovering && !isFlipped ? 1.01 : 1.0) // Subtle scale up on hover
-        .animation(.smooth(duration: 0.3).delay(0.05), value: isSelected)
+        .scaleEffect(isHovering && !isFlipped ? 1.01 : 1.0)
+        .animation(.smooth(duration: 0.4).delay(0.05), value: isSelected)
         .animation(.smooth(duration: 0.3), value: isDisabled)
-        .animation(.smooth(duration: 0.3), value: isRunning)
+        .animation(.smooth(duration: 0.4), value: isRunning)
         .animation(.interpolatingSpring(stiffness: 300, damping: 15), value: isHovering)
         .animation(.interpolatingSpring(stiffness: 300, damping: 15), value: hoverLocation)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isFlipped)
@@ -1024,12 +1028,12 @@ struct IconPathAnimationModifier: ViewModifier {
             
             // Custom animation creates the curved path feeling
             .animation(
-                .spring(
-                    response: 0.6,         // Longer duration
-                    dampingFraction: 0.65, // Less dampening for more bounce
-                    blendDuration: 0.3
-                )
-                .delay(isRunning ? 0.05 : 0), // Slight delay when moving to center
+                .interpolatingSpring(
+                    mass: 1.0,
+                    stiffness: 100,
+                    damping: 15,
+                    initialVelocity: 0
+                ),
                 value: isRunning
             )
     }

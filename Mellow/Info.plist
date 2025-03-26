@@ -6,5 +6,7 @@
 	<string></string>
 	<key>CFBundleSignature</key>
 	<string></string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
 </dict>
 </plist>

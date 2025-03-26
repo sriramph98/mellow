@@ -914,7 +914,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if sender == homeWindow?.window {
             homeWindow?.window?.orderOut(nil)
-            NSApp.setActivationPolicy(.accessory)
             return false
         }
         return true
