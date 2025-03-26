@@ -123,7 +123,7 @@ struct CustomRuleView: View {
                         
                         // Labels for min/max
                         HStack {
-                            Text("5m")
+                            Text("1m")
                                 .font(.system(size: 11, design: .rounded))
                                 .foregroundColor(.secondary.opacity(0.8))
                             

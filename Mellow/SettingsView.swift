@@ -187,23 +187,7 @@ struct SettingsView: View {
                 setLaunchAtLogin(newValue)
             }
             
-            Divider()
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Countdown Overlay")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Show 10-second countdown before break")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Toggle("", isOn: $showOverlay)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-            }
+        
             
             Spacer()
         }

@@ -51,9 +51,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     @AppStorage("isCustomRuleConfigured") var isCustomRuleConfigured: Bool = false
     var pausedTimeRemaining: TimeInterval?
     var overlayDismissed = false
-    @Published var homeWindowInteractionDisabled = false
+    var overlayShown = false
+    var overlayWindow: NSWindow?
+    var homeWindowInteractionDisabled = false
     private var assertionID: IOPMAssertionID = 0
     private var hasValidPowerAssertion: Bool = false
+    var overlayWindows: [NSWindow] = []
+    var menuBarManager: MenuBarManager?
     
     // Helper function to configure window dragging behavior
     private func configureWindowDragging(for window: NSWindow, allowDragging: Bool = false) {
@@ -70,6 +74,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         if UserDefaults.standard.double(forKey: "breakInterval") == 0 {
             UserDefaults.standard.set(1200, forKey: "breakInterval")
         }
+        
+        // Initialize MenuBarManager
+        menuBarManager = MenuBarManager()
         
         createAndShowHomeWindow()
         setupMenuBar()
@@ -226,25 +233,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     private func setupMenuBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Initialize MenuBarManager if not already done
+        if menuBarManager == nil {
+            menuBarManager = MenuBarManager()
+        }
+        
+        // Get the status item from MenuBarManager
+        statusItem = menuBarManager?.getStatusItem()
         
         if let button = statusItem?.button {
-            // Configure menu bar icon
-            if let menuBarIcon = NSImage(named: "menuBarIcon") {
-                menuBarIcon.isTemplate = true
-                menuBarIcon.size = NSSize(width: 18, height: 18)
-                button.image = menuBarIcon
-                button.imagePosition = .imageLeft
-                button.imageScaling = .scaleProportionallyDown
-            }
-            
             // Set up click action
             button.target = self
             button.action = #selector(menuBarButtonClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-        
-        updateMenuBarTitle()
     }
     
     @objc private func menuBarButtonClicked() {
@@ -307,53 +309,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     private func updateMenuBarTitle() {
-        if let button = statusItem?.button {
-            if timer != nil || timerState.isPaused {
-                if timerState.isPaused {
-                    if let remaining = pausedTimeRemaining {
-                        let minutes = Int(remaining) / 60
-                        let seconds = Int(remaining) % 60
-                        
-                        // Show only seconds if less than 1 minute
-                        if minutes == 0 {
-                            timerState.timeString = String(format: "%ds", seconds)
-                            button.title = String(format: " ⏸ %@", timerState.timeString)
-                        } else {
-                            timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                            button.title = String(format: " ⏸ %@", timerState.timeString)
-                        }
-                    }
-                } else if let nextBreak = nextBreakTime {
-                    let timeRemaining = nextBreak.timeIntervalSinceNow
-                    if timeRemaining > 0 {
-                        let minutes = Int(timeRemaining) / 60
-                        let seconds = Int(timeRemaining) % 60
-                        
-                        // Show only seconds if less than 1 minute
-                        if minutes == 0 {
-                            timerState.timeString = String(format: "%ds", seconds)
-                            button.title = String(format: " %@", timerState.timeString)
-                        } else {
-                            timerState.timeString = String(format: "%d:%02d", minutes, seconds)
-                            button.title = String(format: " %@", timerState.timeString)
-                        }
+        if timer != nil || timerState.isPaused {
+            if timerState.isPaused {
+                if let remaining = pausedTimeRemaining {
+                    let minutes = Int(remaining) / 60
+                    let seconds = Int(remaining) % 60
+                    
+                    // Show only seconds if less than 1 minute
+                    if minutes == 0 {
+                        timerState.timeString = String(format: "%ds", seconds)
+                        menuBarManager?.updateTimeRemaining(Int(remaining))
                     } else {
-                        timerState.timeString = "0"
-                        button.title = " 0"
+                        timerState.timeString = String(format: "%d:%02d", minutes, seconds)
+                        menuBarManager?.updateTimeRemaining(Int(remaining))
                     }
                 }
-            } else {
-                timerState.timeString = ""
-                button.title = ""
-                
-                // Reset to custom icon
-                if let menuBarIcon = NSImage(named: "menuBarIcon") {
-                    menuBarIcon.isTemplate = true
-                    menuBarIcon.size = NSSize(width: 18, height: 18)
-                    button.image = menuBarIcon
-                    button.imageScaling = .scaleProportionallyDown
+            } else if let nextBreak = nextBreakTime {
+                let timeRemaining = nextBreak.timeIntervalSinceNow
+                if timeRemaining > 0 {
+                    menuBarManager?.updateTimeRemaining(Int(timeRemaining))
+                } else {
+                    menuBarManager?.updateTimeRemaining(0)
                 }
             }
+        } else {
+            timerState.timeString = ""
+            menuBarManager?.resetMenuBar()
         }
     }
     
@@ -487,8 +468,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             }
         }
     }
-    
-    private var overlayWindows: [NSWindow] = []
     
     private func showFullscreenOverlays(technique: String, duration: TimeInterval) {
         // Close any existing overlay windows
@@ -1086,36 +1065,90 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     func updateTimer() {
-        guard let nextBreak = nextBreakTime, timer != nil else { return }
+        guard let nextBreakTime = nextBreakTime else { return }
         
-        let timeRemaining = nextBreak.timeIntervalSinceNow
+        let timeRemaining = nextBreakTime.timeIntervalSinceNow
         
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        // Update timer state string
+        if timeRemaining > 0 {
+            let minutes = Int(timeRemaining) / 60
+            let seconds = Int(timeRemaining) % 60
             
-            if timeRemaining > 0 {
-                let minutes = Int(timeRemaining) / 60
-                let seconds = Int(timeRemaining) % 60
-                
-                // Update timer state and menu bar
-                let newTimeString: String
-                if minutes == 0 {
-                    newTimeString = String(format: "%ds", seconds)
-                } else {
-                    newTimeString = String(format: "%d:%02d", minutes, seconds)
-                }
-                
-                self.timerState.timeString = newTimeString
-                if let button = self.statusItem?.button {
-                    button.title = " \(newTimeString)"
-                }
+            // Show only seconds if less than 1 minute
+            if minutes == 0 {
+                timerState.timeString = String(format: "%ds", seconds)
             } else {
-                // Timer has ended, show break screen
-                self.timer?.invalidate()
-                self.timer = nil
-                self.showBlurScreen(forTechnique: self.currentTechnique)
+                timerState.timeString = String(format: "%d:%02d", minutes, seconds)
             }
+        } else {
+            timerState.timeString = "0"
         }
+        
+        if timeRemaining <= 10 && !overlayShown {
+            overlayShown = true
+            showCountdownOverlay()
+        }
+        
+        if timeRemaining <= 0 {
+            timer?.invalidate()
+            timer = nil
+            startBreak()
+        }
+        
+        // Update menu bar
+        menuBarManager?.updateTimeRemaining(Int(timeRemaining))
+    }
+    
+    private func showCountdownOverlay() {
+        let overlayWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 200),
+            styleMask: [.titled, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        overlayWindow.isMovableByWindowBackground = true
+        overlayWindow.backgroundColor = .clear
+        overlayWindow.isOpaque = false
+        overlayWindow.hasShadow = true
+        overlayWindow.level = .floating
+        overlayWindow.titlebarAppearsTransparent = true
+        overlayWindow.titleVisibility = .hidden
+        overlayWindow.standardWindowButton(.closeButton)?.isHidden = true
+        overlayWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        overlayWindow.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        // Center the window on the main screen
+        if let screen = NSScreen.main {
+            let screenFrame = screen.frame
+            let windowFrame = overlayWindow.frame
+            let x = screenFrame.midX - windowFrame.width / 2
+            let y = screenFrame.midY - windowFrame.height / 2
+            overlayWindow.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+        
+        let overlayView = OverlayView(
+            isAnimatingOut: .constant(false),
+            initialTimeRemaining: 10
+        ) { [weak self] in
+            // Handle break start
+            self?.startBreak()
+        }
+        
+        let hostingView = NSHostingView(rootView: overlayView)
+        overlayWindow.contentView = hostingView
+        overlayWindow.makeKeyAndOrderFront(nil)
+        
+        // Store the window reference
+        self.overlayWindow = overlayWindow
+    }
+    
+    private func startBreak() {
+        // Close the overlay window if it exists
+        overlayWindow?.close()
+        overlayWindow = nil
+        overlayShown = false
+        
+        // Rest of your existing startBreak code...
     }
     
     // New helper method for timer cleanup
