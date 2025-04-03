@@ -65,13 +65,13 @@ struct PresetCard: View {
     private var sfSymbol: String {
         switch title {
         case "20-20-20 Rule":
-            return "eye.fill"  // Eye symbol for 20-20-20 rule
+            return "eye"  // Eye outline symbol for 20-20-20 rule
         case "Pomodoro Technique":
-            return "clock.fill"  // Timer for Pomodoro
+            return "timer"  // Timer symbol for Pomodoro
         case "Custom":
             return "slider.horizontal.below.square.and.square.filled"  // Slider for custom settings
         default:
-            return "clock.fill"
+            return "eye"
         }
     }
     
@@ -236,8 +236,8 @@ struct PresetCard: View {
                                     .fill(
                                         LinearGradient(
                                             stops: [
-                                                Gradient.Stop(color: Color(red: 0, green: 0.59, blue: 1), location: 0.00),
-                                                Gradient.Stop(color: Color(red: 0, green: 0.38, blue: 0.64), location: 1.00),
+                                                Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.59, blue: 1) : Color(hex: "#FFFFFF"), location: 0.00),
+                                                Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.38, blue: 0.64) : Color(hex: "#DEDEDE"), location: 1.00),
                                             ],
                                             startPoint: UnitPoint(x: 0.5, y: 0),
                                             endPoint: UnitPoint(x: 0.5, y: 1)
@@ -251,7 +251,7 @@ struct PresetCard: View {
                                 Image(systemName: sfSymbol)
                                     .font(.system(size: isRunning ? 40 : 60))
                                     .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(isSelected ? .white : Color(hex: "#929292"))
                                     .opacity(0.6)
                                     .scaleEffect(isRunning ? 0.8 : 1)
                                     .frame(width: 144, height: 144)
@@ -698,6 +698,17 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     // App Header
                     HStack(spacing: 12) {
+                        // Mellow logo and title on the left
+                        HStack(spacing: 8) {
+                            Image("MellowLogo")
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                            
+                            Text("Mellow")
+                                .font(Font.custom("SF Pro Rounded", size: 22).weight(.bold))
+                                .foregroundColor(.black.opacity(0.4))
+                        }
+                        
                         Spacer()
                         
                         // Settings button moved to top right
@@ -723,7 +734,7 @@ struct HomeView: View {
                         // Card container with reduced width
                         VStack {
                             PresetCard(
-                                title: "20-20-20 Rule",
+                                title: "20 20 20 Rule",
                                 isSelected: selectedPreset == "20-20-20 Rule",
                                 description: "Take a 20-second break every 20 minutes to look at something 20 feet away.",
                                 action: {
