@@ -37,6 +37,12 @@ class BreakOverlayWindow: NSWindow {
         // Make sure window is fully opaque
         alphaValue = 1.0
         
+        // Check if this is the internal display
+        let isInternalDisplay = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+        
+        // Set isBlurOnly flag based on whether this is the internal display
+        self.isBlurOnly = !isInternalDisplay
+        
         // Create hosting view for the SwiftUI content
         let hostingView = NSHostingView(
             rootView: BreakOverlayView(
@@ -81,31 +87,47 @@ class BreakOverlayWindow: NSWindow {
     
     // Override to prevent the window from becoming inactive
     override var canBecomeKey: Bool {
-        return true
+        return !isBlurOnly
     }
     
     override var canBecomeMain: Bool {
-        return true
+        return !isBlurOnly
     }
     
     // Override mouse events to prevent window from being disturbed
     override func mouseDown(with event: NSEvent) {
         // Don't call super to prevent default behavior
         // Only allow clicks on the skip button (handled by SwiftUI)
+        // If this is a blur-only window, ignore all mouse events
+        if isBlurOnly {
+            return
+        }
     }
     
     override func mouseDragged(with event: NSEvent) {
         // Don't call super to prevent window dragging
+        // If this is a blur-only window, ignore all mouse events
+        if isBlurOnly {
+            return
+        }
     }
     
     // Override key events to prevent keyboard interactions
     override func keyDown(with event: NSEvent) {
         // Don't call super to prevent keyboard shortcuts
+        // If this is a blur-only window, ignore all key events
+        if isBlurOnly {
+            return
+        }
     }
     
     // Override to prevent window from being moved by any means
     override func performDrag(with event: NSEvent) {
         // Do nothing to prevent dragging
+        // If this is a blur-only window, ignore all drag events
+        if isBlurOnly {
+            return
+        }
     }
 }
 
@@ -183,28 +205,34 @@ class BreakKeyEventHandlingNSView: NSView {
         
         guard let window = self.window else { return }
         
-        // Become first responder immediately
-        window.makeFirstResponder(self)
+        // Check if this is a blur-only window
+        let isBlurOnly = (window as? BreakOverlayWindow)?.isBlurOnly ?? false
         
-        // Set up a timer to maintain focus
-        focusTimer = Timer.scheduledTimer(withTimeInterval:
-            0.1, repeats: true) { [weak self] _ in
-            guard let self = self,
-                  let window = self.window,
-                  window.isVisible else { return }
+        // Only make the window key if it's not blur-only
+        if !isBlurOnly {
+            // Become first responder immediately
+            window.makeFirstResponder(self)
             
-            // Check if window should be key (internal display)
-            let isInternalDisplay = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
-            
-            if isInternalDisplay {
-                // Ensure window is key and first responder
-                if !window.isKeyWindow {
-                    window.makeKeyAndOrderFront(nil)
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+            // Set up a timer to maintain focus
+            focusTimer = Timer.scheduledTimer(withTimeInterval:
+                0.1, repeats: true) { [weak self] _ in
+                guard let self = self,
+                      let window = self.window,
+                      window.isVisible else { return }
                 
-                if window.firstResponder !== self {
-                    window.makeFirstResponder(self)
+                // Check if window should be key (internal display)
+                let isInternalDisplay = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+                
+                if isInternalDisplay {
+                    // Ensure window is key and first responder
+                    if !window.isKeyWindow {
+                        window.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                    
+                    if window.firstResponder !== self {
+                        window.makeFirstResponder(self)
+                    }
                 }
             }
         }
@@ -272,6 +300,14 @@ struct BreakOverlayView: View {
     // Check if this is the internal display
     private var isInternalDisplay: Bool {
         screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+    }
+    
+    // Check if this window is blur-only
+    private var isBlurOnly: Bool {
+        if let window = NSApplication.shared.windows.first(where: { $0.screen == screen }) as? BreakOverlayWindow {
+            return window.isBlurOnly
+        }
+        return false
     }
     
     // Timers
@@ -438,13 +474,13 @@ struct BreakOverlayView: View {
             )
             
             // Add KeyEventHandlingView to capture escape key events only on internal display
-            if isInternalDisplay {
+            if isInternalDisplay && !isBlurOnly {
                 BreakKeyEventHandlingView(onEscape: handleEscape)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             
-            // Only show content on internal display
-            if isInternalDisplay {
+            // Only show content on internal display and when not blur-only
+            if isInternalDisplay && !isBlurOnly {
                 VStack(spacing: 32) {
                     // Current time - always visible
                     Text(formattedCurrentTime)

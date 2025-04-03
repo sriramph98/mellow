@@ -35,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     var settingsViewController: NSViewController?
     @objc dynamic var timeInterval: TimeInterval = 1200 // Default to 20 minutes
     var nextBreakTime: Date?
-    private var currentTechnique: String?
+    var currentTechnique: String?
     private var shortBreakDuration: TimeInterval = 20 // Default 20 seconds
     private var longBreakDuration: TimeInterval = 300 // Default 5 minutes
     private var pomodoroCount: Int = 0
@@ -495,9 +495,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             )!)
         }
         
-        // Get the internal display (usually the first screen)
-        let internalDisplay = NSScreen.screens.first
-        
         // Create an overlay window for each screen
         for screen in NSScreen.screens {
             // Create a window that covers the entire screen including the menu bar
@@ -511,10 +508,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 }
             )
             
-            // If this is not the internal display, make it a blur-only window
-            if screen != internalDisplay {
-                overlayWindow.isBlurOnly = true
-            }
+            // The isBlurOnly flag is now set in the BreakOverlayWindow initializer
+            // based on whether the screen is the internal display
             
             // Store the window reference
             overlayWindows.append(overlayWindow)

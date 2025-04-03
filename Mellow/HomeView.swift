@@ -161,6 +161,57 @@ struct PresetCard: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                             .multilineTextAlignment(textAlignment)
                                             .frame(maxWidth: .infinity, alignment: titleAlignment)
+                                            
+                                        if isCustom && isSelected && !isRunning {
+                                            // Custom settings for break interval and duration
+                                            VStack(spacing: 12) {
+                                                // Break Interval Setting
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    HStack {
+                                                        Text("Break Interval")
+                                                            .font(.rounded(size: 13, weight: .medium))
+                                                            .foregroundColor(.black.opacity(0.7))
+                                                        
+                                                        Spacer()
+                                                        
+                                                        Text(formatTime(Int(customReminderInterval * 60)))
+                                                            .font(.rounded(size: 13, weight: .medium))
+                                                            .foregroundColor(.black.opacity(0.5))
+                                                            .monospacedDigit()
+                                                    }
+                                                    
+                                                    CustomSlider(range: 1...60, value: $customReminderInterval)
+                                                        .frame(height: 16)
+                                                        .onChange(of: customReminderInterval) { _, _ in
+                                                            saveCustomRule()
+                                                        }
+                                                }
+                                                
+                                                // Break Duration Setting
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    HStack {
+                                                        Text("Break Duration")
+                                                            .font(.rounded(size: 13, weight: .medium))
+                                                            .foregroundColor(.black.opacity(0.7))
+                                                        
+                                                        Spacer()
+                                                        
+                                                        Text(formatTime(Int(customBreakDuration * 60)))
+                                                            .font(.rounded(size: 13, weight: .medium))
+                                                            .foregroundColor(.black.opacity(0.5))
+                                                            .monospacedDigit()
+                                                    }
+                                                    
+                                                    CustomSlider(range: 0.25...10, value: $customBreakDuration)
+                                                        .frame(height: 16)
+                                                        .onChange(of: customBreakDuration) { _, _ in
+                                                            saveCustomRule()
+                                                        }
+                                                }
+                                            }
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 8)
+                                        }
                                     }
                                 }
                                 
@@ -260,7 +311,7 @@ struct PresetCard: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.4 : 1.0)
-        .blur(radius: isDisabled ? 1 : 0)
+        .blur(radius: 0)
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .scaleEffect(isHovering && !isFlipped ? 1.01 : 1.0)
         .animation(.smooth(duration: 0.4).delay(0.05), value: isSelected)
@@ -297,12 +348,9 @@ struct PresetCard: View {
                 
                 Spacer()
             } else {
-                // For Custom preset, place settings and play button together
+                // For Custom preset, show only play button
                 if isCustom {
-                    HStack(spacing: 8) {
-                        playButton
-                        settingsButton
-                    }
+                    playButton
                     Spacer()
                 } else {
                     // For other presets, just show play button
@@ -313,11 +361,11 @@ struct PresetCard: View {
         }
         .transition(.asymmetric(
             insertion: .modifier(
-                active: AmoebaTrasitionModifier(blur: 15, opacity: 0, scale: 0.7),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.7),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             ),
             removal: .modifier(
-                active: AmoebaTrasitionModifier(blur: 15, opacity: 0, scale: 0.7),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.7),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             )
         ))
@@ -330,7 +378,7 @@ struct PresetCard: View {
                 Image(systemName: "stop.fill")
                     .font(.system(size: 12, weight: .medium))
                 Text(timerState.timeString)
-                    .font(Font.custom("SF Pro Rounded", size: 16).weight(.medium))
+                    .font(.rounded(size: 16, weight: .medium))
                     .monospacedDigit()
             }
             .foregroundColor(.white)
@@ -342,11 +390,11 @@ struct PresetCard: View {
         ))
         .transition(.asymmetric(
             insertion: .modifier(
-                active: AmoebaTrasitionModifier(blur: 10, opacity: 0, scale: 0.85),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.85),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             ),
             removal: .modifier(
-                active: AmoebaTrasitionModifier(blur: 10, opacity: 0, scale: 0.85),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.85),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             )
         ))
@@ -364,11 +412,11 @@ struct PresetCard: View {
         .buttonStyle(MellowPillButtonStyle(minWidth: 44))
         .transition(.asymmetric(
             insertion: .modifier(
-                active: AmoebaTrasitionModifier(blur: 10, opacity: 0, scale: 0.85),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.85),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             ),
             removal: .modifier(
-                active: AmoebaTrasitionModifier(blur: 10, opacity: 0, scale: 0.85),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 0.85),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             )
         ))
@@ -386,32 +434,15 @@ struct PresetCard: View {
         .buttonStyle(MellowPillButtonStyle(minWidth: 44))
         .transition(.asymmetric(
             insertion: .modifier(
-                active: AmoebaTrasitionModifier(blur: 12, opacity: 0, scale: 1.2),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 1.2),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             ),
             removal: .modifier(
-                active: AmoebaTrasitionModifier(blur: 12, opacity: 0, scale: 1.2),
+                active: AmoebaTrasitionModifier(blur: 0, opacity: 0, scale: 1.2),
                 identity: AmoebaTrasitionModifier(blur: 0, opacity: 1, scale: 1.0)
             )
         ))
         .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isRunning)
-    }
-    
-    private var settingsButton: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                isFlipped = true
-                // Post notification that a card is being flipped
-                NotificationCenter.default.post(name: .cardFlipStateChanged, object: nil, userInfo: ["isFlipped": true])
-            }
-        }) {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
-                .frame(width: 36, height: 30)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(MellowPillButtonStyle(minWidth: 44))
     }
     
     // Function to update hover location
@@ -610,8 +641,14 @@ struct PresetCard: View {
         UserDefaults.standard.set(breakDuration, forKey: "breakDuration")
         
         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-            // Update custom interval directly instead of calling a method
+            // Update custom interval directly
             appDelegate.customInterval = TimeInterval(reminderInterval)
+            
+            // If the timer is already running with the Custom preset, restart it to apply the new values
+            if appDelegate.currentTechnique == "Custom" && appDelegate.timer != nil {
+                appDelegate.stopTimer()
+                appDelegate.startSelectedTechnique(technique: "Custom", isReset: true)
+            }
         }
     }
 }
@@ -624,7 +661,6 @@ struct AmoebaTrasitionModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .blur(radius: blur)
             .opacity(opacity)
             .scaleEffect(scale)
     }
@@ -662,17 +698,25 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     // App Header
                     HStack(spacing: 12) {
-                        // Commented out logo image
-                        /*Image("MellowLogo")
-                            .resizable()
-                            .frame(width: 48, height: 48)
+                        Spacer()
                         
-                        Text("Mellow")
-                            .font(Font.custom("SF Pro Rounded", size: 24).weight(.heavy))
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.black.opacity(0.3))*/
+                        // Settings button moved to top right
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showSettings = true
+                            }
+                        } label: {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 15))
+                                .foregroundColor(.black.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Settings")
+                        .help("Open Settings")
+                        .tag(1001)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 24)
                     
                     // Preset Cards with 20px spacing
                     HStack(spacing: 20) {
@@ -800,43 +844,9 @@ struct HomeView: View {
                 .opacity(isContentVisible ? 1 : 0)
                 .scaleEffect(isContentVisible ? 1 : 0.8)
                 
-                // Footer section
+                // Footer section - removed text, keeping only the container for spacing
                 HStack {
-                    Spacer() // Add spacer at the start
-                    
-                    // Center - Menu bar info (moved from left)
-                    VStack(alignment: .center, spacing: 8) { // Changed alignment to .center
-                        HStack(spacing: 8) {
-                            Image(systemName: "menubar.arrow.up.rectangle")
-                                .font(.system(size: 13))
-                                .foregroundColor(.black.opacity(0.6))
-                            
-                            Text("Mellow lives in the menu bar")
-                                .font(Font.custom("SF Pro Rounded", size: 13).weight(.regular))
-                                .foregroundColor(.black.opacity(0.6))
-                        }
-                        
-                        Text("Click the icon in the menu to access Mellow")
-                            .font(Font.custom("SF Pro Rounded", size: 11).weight(.regular))
-                            .foregroundColor(.black.opacity(0.4))
-                            .multilineTextAlignment(.center) // Added center text alignment
-                    }
-                    .frame(maxWidth: .infinity) // Make the VStack take up all available space
-                    
-                    // Right side - Settings icon (keep this on the right)
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            showSettings = true
-                        }
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 15))
-                            .foregroundColor(.black.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Settings")
-                    .help("Open Settings")
-                    .tag(1001) // Tag for popover anchoring
+                    Spacer()
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
