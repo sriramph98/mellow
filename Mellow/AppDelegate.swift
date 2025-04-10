@@ -376,27 +376,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     }
     
     @objc private func showHomeScreen() {
-        // Only proceed if overlay hasn't been dismissed
-        if overlayDismissed {
-            return
-        }
+        // Set activation policy to regular to ensure window can be shown
+        NSApp.setActivationPolicy(.regular)
         
-        // Only set activation policy if window isn't visible
-        if homeWindow?.window?.isVisible != true {
-            NSApp.setActivationPolicy(.regular)
-        }
-        
+        // Create window if it doesn't exist
         if homeWindow == nil {
             createAndShowHomeWindow()
         }
         
         // Ensure window is visible and app is active
         if let window = homeWindow?.window {
-            if window.isVisible {
-                window.orderFront(nil)
-            } else {
-                window.makeKeyAndOrderFront(nil)
-            }
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
         }
         
         // Activate app and bring to front
@@ -1079,71 +1070,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             timerState.timeString = "0"
         }
         
-        if timeRemaining <= 10 && !overlayShown {
-            overlayShown = true
-            showCountdownOverlay()
-        }
-        
         if timeRemaining <= 0 {
+            // Invalidate the timer first
             timer?.invalidate()
             timer = nil
-            startBreak()
+            
+            // Start the break on the main thread
+            DispatchQueue.main.async { [weak self] in
+                self?.startBreak()
+            }
         }
         
         // Update menu bar
         menuBarManager?.updateTimeRemaining(Int(timeRemaining))
     }
     
-    private func showCountdownOverlay() {
-        let overlayWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 200),
-            styleMask: [.titled, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        overlayWindow.isMovableByWindowBackground = true
-        overlayWindow.backgroundColor = .clear
-        overlayWindow.isOpaque = false
-        overlayWindow.hasShadow = true
-        overlayWindow.level = .floating
-        overlayWindow.titlebarAppearsTransparent = true
-        overlayWindow.titleVisibility = .hidden
-        overlayWindow.standardWindowButton(.closeButton)?.isHidden = true
-        overlayWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        overlayWindow.standardWindowButton(.zoomButton)?.isHidden = true
-        
-        // Center the window on the main screen
-        if let screen = NSScreen.main {
-            let screenFrame = screen.frame
-            let windowFrame = overlayWindow.frame
-            let x = screenFrame.midX - windowFrame.width / 2
-            let y = screenFrame.midY - windowFrame.height / 2
-            overlayWindow.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-        
-        let overlayView = OverlayView(
-            isAnimatingOut: .constant(false),
-            initialTimeRemaining: 10
-        ) { [weak self] in
-            // Handle break start
-            self?.startBreak()
-        }
-        
-        let hostingView = NSHostingView(rootView: overlayView)
-        overlayWindow.contentView = hostingView
-        overlayWindow.makeKeyAndOrderFront(nil)
-        
-        // Store the window reference
-        self.overlayWindow = overlayWindow
-    }
-    
     private func startBreak() {
-        // Close the overlay window if it exists
-        overlayWindow?.close()
-        overlayWindow = nil
-        overlayShown = false
+        // Ensure we're on the main thread
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.startBreak()
+            }
+            return
+        }
         
-        // Rest of your existing startBreak code...
+        // Play the break sound
+        try? playBreakSound()
+        
+        // Prevent screen sleep during break
+        preventDisplaySleep()
+        
+        // Determine break duration based on technique
+        let techniqueName = currentTechnique ?? "20-20-20 Rule"
+        let breakDuration: TimeInterval
+        
+        do {
+            breakDuration = try getDismissalDuration(for: techniqueName)
+        } catch {
+            handleError(error)
+            return
+        }
+        
+        // Create and show full-screen overlay windows on all screens
+        showFullscreenOverlays(technique: techniqueName, duration: breakDuration)
+        
+        // After the break duration, handle break completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + breakDuration) { [weak self] in
+            self?.handleBreakComplete()
+        }
     }
     
     // New helper method for timer cleanup
