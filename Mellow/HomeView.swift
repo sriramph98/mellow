@@ -10,7 +10,7 @@ struct PresetCard: View {
     let onModify: (() -> Void)?
     let isDisabled: Bool
     let namespace: Namespace.ID
-    let timerState: TimerState
+    @StateObject var timerState: TimerState
     let isRunning: Bool
     let onStartStop: () -> Void
     let onPauseResume: () -> Void
@@ -21,6 +21,7 @@ struct PresetCard: View {
     @State private var customReminderInterval: Double = 20
     @State private var customBreakDuration: Double = 0.33
     @State private var notificationObserver: NSObjectProtocol? = nil
+    @State private var pomodoroCount: Int = 0
     
     init(
         title: String,
@@ -44,7 +45,7 @@ struct PresetCard: View {
         self.onModify = onModify
         self.isDisabled = isDisabled
         self.namespace = namespace
-        self.timerState = timerState
+        self._timerState = StateObject(wrappedValue: timerState)
         self.isRunning = isRunning
         self.onStartStop = onStartStop
         self.onPauseResume = onPauseResume
@@ -144,121 +145,7 @@ struct PresetCard: View {
                     GeometryReader { geometry in
                         ZStack {
                             // Front side of the card
-                            // Main content
-                            VStack(spacing: 16) {
-                                // Title and description at the top
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text(title)
-                                        .font(Font.custom("SF Pro Rounded", size: 17).weight(.bold))
-                                        .foregroundColor(textColor)
-                                        .frame(maxWidth: .infinity, alignment: titleAlignment)
-                                    
-                                    if !isSelected || !isRunning {
-                                        Text(description)
-                                            .font(Font.custom("SF Pro Rounded", size: 14).weight(.regular))
-                                            .foregroundColor(Color.black.opacity(0.4))  // Set description text opacity to 60%
-                                            .lineSpacing(CGFloat(14) * 0.5) // Adjusted line spacing for 13pt font
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .multilineTextAlignment(textAlignment)
-                                            .frame(maxWidth: .infinity, alignment: titleAlignment)
-                                            
-                                        if isCustom && isSelected && !isRunning {
-                                            // Custom settings for break interval and duration
-                                            VStack(spacing: 12) {
-                                                // Break Interval Setting
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    HStack {
-                                                        Text("Break Interval")
-                                                            .font(.rounded(size: 13, weight: .medium))
-                                                            .foregroundColor(.black.opacity(0.7))
-                                                        
-                                                        Spacer()
-                                                        
-                                                        Text(formatTime(Int(customReminderInterval * 60)))
-                                                            .font(.rounded(size: 13, weight: .medium))
-                                                            .foregroundColor(.black.opacity(0.5))
-                                                            .monospacedDigit()
-                                                    }
-                                                    
-                                                    CustomSlider(range: 1...60, value: $customReminderInterval)
-                                                        .frame(height: 16)
-                                                        .onChange(of: customReminderInterval) { _, _ in
-                                                            saveCustomRule()
-                                                        }
-                                                }
-                                                
-                                                // Break Duration Setting
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    HStack {
-                                                        Text("Break Duration")
-                                                            .font(.rounded(size: 13, weight: .medium))
-                                                            .foregroundColor(.black.opacity(0.7))
-                                                        
-                                                        Spacer()
-                                                        
-                                                        Text(formatTime(Int(customBreakDuration * 60)))
-                                                            .font(.rounded(size: 13, weight: .medium))
-                                                            .foregroundColor(.black.opacity(0.5))
-                                                            .monospacedDigit()
-                                                    }
-                                                    
-                                                    CustomSlider(range: 0.25...10, value: $customBreakDuration)
-                                                        .frame(height: 16)
-                                                        .onChange(of: customBreakDuration) { _, _ in
-                                                            saveCustomRule()
-                                                        }
-                                                }
-                                            }
-                                            .padding(.horizontal, 4)
-                                            .padding(.vertical, 8)
-                                        }
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                // Timer controls and settings button
-                                if isSelected {
-                                    timerControlsView
-                                }
-                            }
-                            .padding(20)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(cardStyle.background.opacity(cardStyle.opacity))
-                            }
-                            
-                            // Unified icon with animation between positions
-                            ZStack {
-                                // Circle background that fades out when running
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            stops: [
-                                                Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.59, blue: 1) : Color(hex: "#FFFFFF"), location: 0.00),
-                                                Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.38, blue: 0.64) : Color(hex: "#DEDEDE"), location: 1.00),
-                                            ],
-                                            startPoint: UnitPoint(x: 0.5, y: 0),
-                                            endPoint: UnitPoint(x: 0.5, y: 1)
-                                        )
-                                    )
-                                    .frame(width: 144, height: 144)
-                                    .opacity(isRunning ? 1 : 1)
-                                    .scaleEffect(isRunning ? 0.7 : 1)
-                                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
-                                
-                                Image(systemName: sfSymbol)
-                                    .font(.system(size: isRunning ? 40 : 60))
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(isSelected ? .white : Color(hex: "#929292"))
-                                    .opacity(0.6)
-                                    .scaleEffect(isRunning ? 0.8 : 1)
-                                    .frame(width: 144, height: 144)
-                                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
-                            .modifier(IconPathAnimationModifier(isRunning: isRunning, isSelected: isSelected))
+                            cardContent
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .shadow(color: isSelected ? Color.black.opacity(0.2) : (isHovering ? Color.black.opacity(0.15) : Color.clear), 
@@ -334,6 +221,146 @@ struct PresetCard: View {
                 NotificationCenter.default.removeObserver(observer)
             }
         }
+    }
+    
+    @ViewBuilder
+    private var cardContent: some View {
+        // Main content
+        VStack(spacing: 16) {
+            // Title and description at the top
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(Font.custom("SF Pro Rounded", size: 17).weight(.bold))
+                    .foregroundColor(Color.black.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: isRunning ? .center : .leading)
+                
+                if !isSelected || !isRunning {
+                    Text(description)
+                        .font(Font.custom("SF Pro Rounded", size: 14).weight(.regular))
+                        .foregroundColor(Color.black.opacity(0.4))
+                        .lineSpacing(CGFloat(14) * 0.5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(isRunning ? .center : .leading)
+                        .frame(maxWidth: .infinity, alignment: isRunning ? .center : .leading)
+                        
+                    if isCustom && isSelected && !isRunning {
+                        // Custom settings for break interval and duration
+                        VStack(spacing: 12) {
+                            // Break Interval Setting
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("Break Interval")
+                                        .font(.rounded(size: 13, weight: .medium))
+                                        .foregroundColor(.black.opacity(0.7))
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatTime(Int(customReminderInterval * 60)))
+                                        .font(.rounded(size: 13, weight: .medium))
+                                        .foregroundColor(.black.opacity(0.5))
+                                        .monospacedDigit()
+                                }
+                                
+                                CustomSlider(range: 1...60, value: $customReminderInterval)
+                                    .frame(height: 16)
+                                    .onChange(of: customReminderInterval) { _, _ in
+                                        saveCustomRule()
+                                    }
+                            }
+                            
+                            // Break Duration Setting
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("Break Duration")
+                                        .font(.rounded(size: 13, weight: .medium))
+                                        .foregroundColor(.black.opacity(0.7))
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatTime(Int(customBreakDuration * 60)))
+                                        .font(.rounded(size: 13, weight: .medium))
+                                        .foregroundColor(.black.opacity(0.5))
+                                        .monospacedDigit()
+                                }
+                                
+                                CustomSlider(range: 0.25...10, value: $customBreakDuration)
+                                    .frame(height: 16)
+                                    .onChange(of: customBreakDuration) { _, _ in
+                                        saveCustomRule()
+                                    }
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Timer controls and settings button
+            if isSelected {
+                timerControlsView
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardStyle.background.opacity(cardStyle.opacity))
+        }
+        
+        // Unified icon with animation between positions
+        ZStack {
+            // Circle background that fades out when running
+            Circle()
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.59, blue: 1) : Color(hex: "#FFFFFF"), location: 0.00),
+                            Gradient.Stop(color: isSelected ? Color(red: 0, green: 0.38, blue: 0.64) : Color(hex: "#DEDEDE"), location: 1.00),
+                        ],
+                        startPoint: UnitPoint(x: 0.5, y: 0),
+                        endPoint: UnitPoint(x: 0.5, y: 1)
+                    )
+                )
+                .frame(width: 144, height: 144)
+                .opacity(isRunning ? 1 : 1)
+                .scaleEffect(isRunning ? 0.7 : 1)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
+            
+            VStack(spacing: 8) {
+                Image(systemName: sfSymbol)
+                    .font(.system(size: isRunning ? 40 : 60))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isSelected ? .white : Color(hex: "#929292"))
+                    .opacity(0.6)
+                    .scaleEffect(isRunning ? 0.8 : 1)
+                    .frame(width: 144, height: 144)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isRunning)
+                
+                // Show Pomodoro count if applicable
+                if title == "Pomodoro Technique" && isRunning {
+                    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                        HStack(spacing: 4) {
+                            ForEach(0..<4, id: \.self) { index in
+                                Circle()
+                                    .fill(Color.black)
+                                    .frame(width: 6, height: 6)
+                                    .opacity(index < pomodoroCount ? 1.0 : 0.2)
+                            }
+                        }
+                        .padding(.top, -16)
+                        .onReceive(appDelegate.objectWillChange) { _ in
+                            // Update the local pomodoroCount state
+                            pomodoroCount = appDelegate.getPomodoroCount()
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isRunning ? .center : .bottomTrailing)
+        .modifier(IconPathAnimationModifier(isRunning: isRunning, isSelected: isSelected))
     }
     
     @ViewBuilder

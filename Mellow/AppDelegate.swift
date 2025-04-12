@@ -38,7 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
     var currentTechnique: String?
     private var shortBreakDuration: TimeInterval = 20 // Default 20 seconds
     private var longBreakDuration: TimeInterval = 300 // Default 5 minutes
-    private var pomodoroCount: Int = 0
+    @Published private var pomodoroCount: Int = 0
     private var customBreakDuration: TimeInterval {
         TimeInterval(UserDefaults.standard.integer(forKey: "breakDuration"))
     }
@@ -554,6 +554,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 name: NSNotification.Name("MellowBreakEnded"),
                 object: nil
             )
+            
+            // For Pomodoro Technique, update the count after break
+            if self.currentTechnique == "Pomodoro Technique" {
+                if self.pomodoroCount == 4 {
+                    // After long break, reset to 1
+                    self.pomodoroCount = 1
+                    print("🍅 Long break completed - Starting new cycle at Count: 1/4")
+                } else {
+                    // After short break, increment count but cap at 4
+                    self.pomodoroCount = min(self.pomodoroCount + 1, 4)
+                    print("🍅 Break completed - Count: \(self.pomodoroCount)/4")
+                }
+            }
             
             // Start the next timer
             do {
