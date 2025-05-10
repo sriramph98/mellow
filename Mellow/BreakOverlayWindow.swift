@@ -210,28 +210,28 @@ class BreakKeyEventHandlingNSView: NSView {
         
         // Only make the window key if it's not blur-only
         if !isBlurOnly {
-            // Become first responder immediately
-            window.makeFirstResponder(self)
+        // Become first responder immediately
+        window.makeFirstResponder(self)
+        
+        // Set up a timer to maintain focus
+        focusTimer = Timer.scheduledTimer(withTimeInterval:
+            0.1, repeats: true) { [weak self] _ in
+            guard let self = self,
+                  let window = self.window,
+                  window.isVisible else { return }
             
-            // Set up a timer to maintain focus
-            focusTimer = Timer.scheduledTimer(withTimeInterval:
-                0.1, repeats: true) { [weak self] _ in
-                guard let self = self,
-                      let window = self.window,
-                      window.isVisible else { return }
+            // Check if window should be key (internal display)
+            let isInternalDisplay = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
+            
+            if isInternalDisplay {
+                // Ensure window is key and first responder
+                if !window.isKeyWindow {
+                    window.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
                 
-                // Check if window should be key (internal display)
-                let isInternalDisplay = window.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber") as NSDeviceDescriptionKey] as? CGDirectDisplayID == CGMainDisplayID()
-                
-                if isInternalDisplay {
-                    // Ensure window is key and first responder
-                    if !window.isKeyWindow {
-                        window.makeKeyAndOrderFront(nil)
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                    
-                    if window.firstResponder !== self {
-                        window.makeFirstResponder(self)
+                if window.firstResponder !== self {
+                    window.makeFirstResponder(self)
                     }
                 }
             }

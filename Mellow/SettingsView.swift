@@ -236,7 +236,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Mellow")
                         .font(.system(size: 16, weight: .semibold))
-                    Text("Version 1.0.0")
+                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0")")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }

@@ -533,6 +533,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
         )
     }
     
+    private func updatePomodoroCount(isBreakComplete: Bool = false) {
+        guard currentTechnique == "Pomodoro Technique" else { return }
+        
+        if pomodoroCount == 4 {
+            // After completing the 4th session, reset to 1 to start new cycle
+            pomodoroCount = 1
+            print("🍅 Completed 4 sessions - Starting new cycle at Count: 1/4")
+        } else if isBreakComplete {
+            // After completing a break, keep the current count
+            print("🍅 Break completed - Current Count: \(pomodoroCount)/4")
+        }
+        objectWillChange.send() // Notify observers of the count change
+    }
+
     private func handleBreakComplete() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -555,18 +569,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 object: nil
             )
             
-            // For Pomodoro Technique, update the count after break
-            if self.currentTechnique == "Pomodoro Technique" {
-                if self.pomodoroCount == 4 {
-                    // After long break, reset to 1
-                    self.pomodoroCount = 1
-                    print("🍅 Long break completed - Starting new cycle at Count: 1/4")
-                } else {
-                    // After short break, increment count but cap at 4
-                    self.pomodoroCount = min(self.pomodoroCount + 1, 4)
-                    print("🍅 Break completed - Count: \(self.pomodoroCount)/4")
-                }
+            // Update Pomodoro count
+            if self.currentTechnique == "Pomodoro Technique" && self.pomodoroCount == 4 {
+                // After long break, reset to 1 to start new cycle
+                self.pomodoroCount = 1
+                print("🍅 Long break completed - Starting new cycle at Count: 1/4")
             }
+            self.updatePomodoroCount(isBreakComplete: true)
             
             // Start the next timer
             do {
@@ -790,13 +799,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 timeInterval = 1200  // 20 minutes
             case "Pomodoro Technique":
                 timeInterval = 1500  // 25 minutes
-                if pomodoroCount == 0 {
-                    pomodoroCount = 1
-                    print("🍅 Starting Pomodoro - Count: 1/4")
-                } else if isReset {
-                    // When resetting, increment the count but cap at 4
-                    pomodoroCount = min(pomodoroCount + 1, 4)
-                    print("🍅 Timer reset - Count: \(pomodoroCount)/4")
+                if isReset {
+                    // When resetting, start with 0 count
+                    pomodoroCount = 0
+                    print("🍅 Starting new Pomodoro session - Count: 0/4")
                 }
             case "Custom":
                 // Ensure we have a valid custom interval
@@ -930,18 +936,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
             
             // Start a new timer with the current technique
             if let technique = self.currentTechnique {
-                // For Pomodoro, handle count based on break type
-                if technique == "Pomodoro Technique" {
-                    if self.pomodoroCount == 4 {
-                        // After long break, reset to 1
-                        self.pomodoroCount = 1
-                        print("🍅 Long break skipped - Starting new cycle at Count: 1/4")
-                    } else {
-                        // After short break, increment count but cap at 4
-                        self.pomodoroCount = min(self.pomodoroCount + 1, 4)
-                        print("🍅 Break skipped - Count: \(self.pomodoroCount)/4")
-                    }
-                }
                 // Pass false to isReset to prevent double incrementing
                 self.startSelectedTechnique(technique: technique, isReset: false)
             }
@@ -1105,6 +1099,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Observable
                 self?.startBreak()
             }
             return
+        }
+        
+        // Increment Pomodoro count before showing break
+        if currentTechnique == "Pomodoro Technique" {
+            if pomodoroCount < 4 {
+                pomodoroCount += 1
+                print("🍅 Work session completed - Count: \(pomodoroCount)/4")
+            } else {
+                // After 4 sessions, reset to 1 to start new cycle
+                pomodoroCount = 1
+                print("🍅 Completed 4 sessions - Starting new cycle at Count: 1/4")
+            }
+            objectWillChange.send() // Notify observers of the count change
         }
         
         // Play the break sound

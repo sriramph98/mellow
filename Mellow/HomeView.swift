@@ -23,6 +23,9 @@ struct PresetCard: View {
     @State private var notificationObserver: NSObjectProtocol? = nil
     @State private var pomodoroCount: Int = 0
     
+    // Add a timer to periodically check the Pomodoro count
+    private let pomodoroCheckTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    
     init(
         title: String,
         isSelected: Bool,
@@ -96,10 +99,6 @@ struct PresetCard: View {
     }
     
     var body: some View {
-        let titleAlignment: Alignment = isRunning ? .center : .leading
-        let textAlignment: TextAlignment = isRunning ? .center : .leading
-        let textColor = Color.black.opacity(0.6)
-        
         // Use a Group to conditionally render either a Button (when not flipped) or a regular view (when flipped)
         return Group {
             if isFlipped {
@@ -377,7 +376,7 @@ struct PresetCard: View {
             } else {
                 // For Custom preset, show only play button
                 if isCustom {
-                    playButton
+                        playButton
                     Spacer()
                 } else {
                     // For other presets, just show play button
@@ -728,10 +727,10 @@ struct HomeView: View {
                         // Mellow logo and title on the left
                         HStack(spacing: 8) {
                             Image("MellowLogo")
-                                .resizable()
+                            .resizable()
                                 .frame(width: 24, height: 24)
-                            
-                            Text("Mellow")
+                        
+                        Text("Mellow")
                                 .font(Font.custom("SF Pro Rounded", size: 22).weight(.bold))
                                 .foregroundColor(.black.opacity(0.4))
                         }
